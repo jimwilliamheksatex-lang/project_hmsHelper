@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Warping Job Order - MC1</title>
+    <style>
+        :root { --primary-color: #2c3e50; --accent-color: #27ae60; --danger-color: #e74c3c; --bg-color: #f4f7f6; --start-color: #3498db; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        .logo { max-height: 50px; max-width: 50px; }
+        .machine-id { background: var(--primary-color); color: white; padding: 10px 20px; border-radius: 5px; font-size: 1.5em; font-weight: bold; }
+        
+        .mo-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 10px; background: #eee; padding: 15px; border-radius: 5px; }
+        .mo-header .form-group { display: flex; flex-direction: column; }
+        .mo-header label { font-size: 0.7em; font-weight: bold; color: #555; margin-bottom: 2px; }
+        .mo-header span { font-weight: bold; color: #000; }
+        
+        .estimasi-box { 
+            background: #e8f0fe; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid #3498db;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .estimasi-box .label { color: #2c3e50; }
+        .estimasi-box .value { color: #27ae60; font-size: 1.1em; }
+        
+        /* FORM INPUT – 4 KOLOM RAPI */
+        .input-section { 
+            display: none; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 12px; 
+            background: #f9f9f9; 
+            padding: 15px; 
+            border-radius: 5px; 
+            border: 1px solid #ddd; 
+            margin-top: 15px; 
+            align-items: start;
+        }
+        .input-section .form-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 2px;
+        }
+        .input-section .form-group label { 
+            font-size: 0.75em; 
+            font-weight: bold; 
+            color: #555; 
+            margin-bottom: 2px; 
+        }
+        .input-section .form-group input, 
+        .input-section .form-group select { 
+            padding: 6px 8px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 0.9em; 
+            width: 100%; 
+        }
+        .input-section .form-group input[type="checkbox"] { 
+            width: 20px; 
+            height: 20px; 
+            margin-top: 4px;
+            align-self: flex-start;
+        }
+        /* Cacat full width */
+        #formInput .form-group:last-child {
+            grid-column: 1 / -1;
+            width: 100%;
+            padding: 0;
+            margin-bottom: 0;
+        }
+        #formInput .form-group:last-child textarea {
+            width: 100%;
+            box-sizing: border-box;
+            display: block;
+            resize: vertical;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-family: inherit;
+        }
+        
+        /* Tombol */
+        button { padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; color: white; }
+        .btn-start { background: var(--start-color); }
+        .btn-done { background: var(--accent-color); }
+        .btn-selesai { background: #9b59b6; }
+        
+        /* Tabel */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.85em; }
+        th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; }
+        th { background-color: var(--primary-color); color: white; white-space: nowrap; }
+        td { word-break: break-word; }
+        
+        /* Aksi di tabel */
+        .action-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .action-cell input[type="password"] { width: 70px; padding: 3px; font-size: 0.8em; }
+        .action-cell button { padding: 3px 6px; margin: 0; font-size: 0.75em; background: #27ae60; color: white; border: none; border-radius: 3px; cursor: pointer; width: auto; }
+        .action-cell .btn-hapus { background: red; color: white; padding: 4px 8px; border: none; border-radius: 3px; cursor: pointer; width: auto; }
+        .action-cell .btn-hapus:hover { background: darkred; }
+
+        /* Responsive tablet */
+        @media (max-width: 900px) {
+            .input-section { grid-template-columns: repeat(3, 1fr); }
+            .mo-header { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 700px) {
+            .input-section { grid-template-columns: repeat(2, 1fr); }
+            .mo-header { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 450px) {
+            .input-section { grid-template-columns: 1fr; }
+            .mo-header { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <img src="http://157.20.244.218:8880/hms/dist/img/logo.png" alt="Logo" class="logo">
+        <h1>WARPING JOB ORDER</h1>
+        <div class="machine-id">MC1</div>
+    </div>
+    
+    <!-- MO HEADER -->
+    <div class="mo-header">
+        <div class="form-group"><label>MO Number</label><span>MO260700124</span></div>
+        <div class="form-group"><label>Knitting MC</label><span>MC48</span></div>
+        <div class="form-group"><label>Operator</label><span id="opName">Arif</span></div>
+        <div class="form-group"><label>Shift</label><span id="opShift">Siang</span></div>
+        <div class="form-group"><label>Benang</label><span>POLY SDY SD 75-36/560</span></div>
+        <div class="form-group"><label>Target Beam</label><span id="targetBeam">6</span></div>
+        <div class="form-group"><label>GB</label><span>2</span></div>
+        <div class="form-group"><label>Speed Target</label><span id="mcSpeed">500 RPM</span></div>
+        <div class="form-group"><label>Order per Beam</label><span id="panjangTarget">13.253 m</span></div>
+        <div class="form-group"><label>Lembar</label><span id="lembarValue">560</span></div>
+        <div class="form-group"><label>Denier</label><span id="denierValue">75</span></div>
+        <div class="form-group"><label>Slowert / Tension</label><span id="tensionValue"></span></div>
+    </div>
+
+    <!-- ESTIMASI SISA -->
+    <div class="estimasi-box" id="estimasiBox">
+        <span class="label">⏱ Estimasi Sisa Pekerjaan:</span>
+        <span class="value" id="estimasiValue">— (mulai bekerja dulu)</span>
+    </div>
+
+    <button id="startBtn" class="btn-start" onclick="startTimer()">Mulai Bekerja</button>
+
+    <!-- FORM INPUT -->
+    <div id="formInput" class="input-section">
+        <div class="form-group">
+            <label>Beam No.</label>
+            <input list="beamList" id="beamNo" placeholder="Ketik nomor..." oninput="updateUI()">
+            <datalist id="beamList"></datalist>
+        </div>
+        <div class="form-group">
+            <label>UI (mm)</label>
+            <input type="text" id="uiValue" readonly style="background:#eee;">
+        </div>
+        <div class="form-group">
+            <label>Speed</label>
+            <input type="number" id="speed" step="any">
+        </div>
+        <div class="form-group">
+            <label>Panjang Akhir (m)</label>
+            <input type="number" id="panjangAkhir" step="any" oninput="updateEstimasiSisa()">
+        </div>
+        <div class="form-group">
+            <label>Grade</label>
+            <select id="grade"><option>A</option><option>B</option><option>C</option></select>
+        </div>
+        <div class="form-group">
+            <label>UA (Out)</label>
+            <input type="text" id="ua" placeholder="UA">
+        </div>
+        <div class="form-group">
+            <label>Winding</label>
+            <input type="number" id="winding" placeholder="Winding">
+        </div>
+        <div class="form-group">
+            <label>Amplas & Bersih</label>
+            <input type="checkbox" id="amplas" style="height:20px; width:20px; margin-top:4px;">
+        </div>
+        <div class="form-group">
+            <!-- kosong sebagai spasi -->
+        </div>
+        <div class="form-group">
+            <label>Cacat</label>
+            <textarea id="cacat" placeholder="Deskripsi" rows="3"></textarea>
+        </div>
+    </div>
+    
+    <button id="addBtn" class="btn-done" onclick="addBeam()" style="display:none;">Done - Add Beam</button>
+    <button id="finishBtn" class="btn-selesai" onclick="finishMO()" style="display:none;">Selesai - Lanjut ke MO Berikutnya</button>
+
+    <!-- TABEL -->
+    <table id="beamTable">
+        <thead>
+            <tr>
+                <th>Waktu Selesai</th>
+                <th>Beam</th>
+                <th>UI</th>
+                <th>Speed</th>
+                <th>Panjang</th>
+                <th>Winding</th>
+                <th>Cacat</th>
+                <th>Grade</th>
+                <th>UA</th>
+                <th>Berat</th>
+                <th>Amplas</th>
+                <th>Operator</th>
+                <th>Shift</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    // ---- Variabel global ----
+    let startTime = null;
+    let isStarted = false; // Menandakan apakah tombol "Mulai Bekerja" sudah ditekan
+    const ADMIN_PASS = "admin123";
+    const beamDatabase = { "J199": "662", "156": "662", "71": "662", "32": "662", "17A": "662", "307": "662", "66": "662", "283": "662"};
+    let usedBeams = [];
+
+    // ---- Helper ambil nilai header ----
+    function getHeaderValue(id) {
+        const el = document.getElementById(id);
+        if (!el) return 0;
+        let txt = el.innerText.trim();
+        let num = parseFloat(txt.replace(/[^0-9.]/g, ''));
+        return isNaN(num) ? 0 : num;
+    }
+
+    function getPanjangTargetNumerik() {
+    const span = document.getElementById('panjangTarget');
+    if (!span) return 0;
+    let txt = span.innerText.trim(); // contoh: "13.253 m"
+    // Hilangkan semua titik (pemisah ribuan) dan karakter non-digit
+    let cleaned = txt.replace(/\./g, '').replace(/[^0-9]/g, '');
+    return parseFloat(cleaned) || 0; // menghasilkan 13253
+    }
+
+    // ---- Hitung total panjang yang sudah selesai dari tabel ----
+    function getTotalPanjangSelesai() {
+        const tbody = document.querySelector('#beamTable tbody');
+        if (!tbody) return 0;
+        let total = 0;
+        for (let row of tbody.rows) {
+            const cell = row.cells[4];
+            if (cell) {
+                const val = parseFloat(cell.innerText);
+                if (!isNaN(val)) total += val;
+            }
+        }
+        return total;
+    }
+
+    // ---- Update estimasi sisa ----
+    function updateEstimasiSisa() {
+        const speed = parseFloat(document.getElementById('speed').value) || 0;
+        if (speed <= 0) {
+            document.getElementById('estimasiValue').textContent = '— (isi speed)';
+            return;
+        }
+
+        const targetBeam = getHeaderValue('targetBeam');
+        const panjangTarget = getPanjangTargetNumerik();
+        const totalTarget = targetBeam * panjangTarget;
+
+        const totalSelesai = getTotalPanjangSelesai();
+        const sisa = Math.max(0, totalTarget - totalSelesai);
+
+        const estimasiEl = document.getElementById('estimasiValue');
+        if (sisa <= 0) {
+            estimasiEl.textContent = '✅ Semua beam selesai!';
+            return;
+        }
+
+        const totalMinutes = sisa / speed;
+        if (totalMinutes <= 0) {
+            estimasiEl.textContent = '— (periksa input)';
+            return;
+        }
+
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.round(totalMinutes % 60);
+        let display = '';
+        if (hours > 0) display += hours + ' jam ';
+        display += minutes + ' menit';
+        estimasiEl.textContent = '~ ' + display + ' (sisa ' + sisa.toFixed(0) + ' m)';
+    }
+
+    // ---- Format waktu HH:MM ----
+    function formatTime(date) {
+        const h = String(date.getHours()).padStart(2, '0');
+        const m = String(date.getMinutes()).padStart(2, '0');
+        return h + ':' + m;
+    }
+
+    // ---- Update daftar pilihan beam (hanya yang belum dipakai) ----
+    function updateBeamList() {
+        const datalist = document.getElementById('beamList');
+        if (!datalist) return;
+        datalist.innerHTML = '';
+        Object.keys(beamDatabase).forEach(key => {
+            if (!usedBeams.includes(key)) {
+                const option = document.createElement('option');
+                option.value = key;
+                datalist.appendChild(option);
+            }
+        });
+    }
+
+    // ---- Cek dan atur tampilan tombol/form berdasarkan status start dan jumlah baris ----
+    function checkLimitAndUI() {
+        const table = document.getElementById('beamTable').getElementsByTagName('tbody')[0];
+        const targetBeam = getHeaderValue('targetBeam');
+        const currentCount = table.rows.length;
+        const startBtn = document.getElementById('startBtn');
+        const formInput = document.getElementById('formInput');
+        const addBtn = document.getElementById('addBtn');
+        const finishBtn = document.getElementById('finishBtn');
+
+        if (!isStarted) {
+            // Belum mulai: tampilkan tombol start, sembunyikan form, add, dan finish
+            startBtn.style.display = 'block';
+            formInput.style.display = 'none';
+            addBtn.style.display = 'none';
+            finishBtn.style.display = 'none';
+            return;
+        }
+
+        // Sudah mulai
+        startBtn.style.display = 'none'; // pastikan start tidak terlihat
+        if (currentCount >= targetBeam) {
+            formInput.style.display = 'none';
+            addBtn.style.display = 'none';
+            finishBtn.style.display = 'block';
+        } else {
+            formInput.style.display = 'grid';
+            addBtn.style.display = 'block';
+            finishBtn.style.display = 'none';
+        }
+    }
+
+    // ---- Inisialisasi ----
+    window.addEventListener('DOMContentLoaded', function() {
+        // Pastikan awal: isStarted = false, semua tersembunyi kecuali startBtn
+        isStarted = false;
+        document.getElementById('startBtn').style.display = 'block';
+        document.getElementById('formInput').style.display = 'none';
+        document.getElementById('addBtn').style.display = 'none';
+        document.getElementById('finishBtn').style.display = 'none';
+
+        // Isi datalist
+        updateBeamList();
+
+        // Speed dari header
+        const speedSpan = document.getElementById('mcSpeed');
+        if (speedSpan) {
+            const speedNum = parseFloat(speedSpan.innerText.replace(/[^0-9.]/g, ''));
+            if (!isNaN(speedNum)) document.getElementById('speed').value = speedNum;
+        }
+        // Panjang akhir default
+        const defPanjang = getPanjangTargetNumerik();
+        if (defPanjang > 0) document.getElementById('panjangAkhir').value = defPanjang;
+
+        // Estimasi awal
+        updateEstimasiSisa();
+
+        // Event listener
+        document.getElementById('speed').addEventListener('input', updateEstimasiSisa);
+        document.getElementById('panjangAkhir').addEventListener('input', updateEstimasiSisa);
+    });
+
+    function updateUI() {
+        const beamNo = document.getElementById('beamNo').value;
+        document.getElementById('uiValue').value = beamDatabase[beamNo] || "";
+    }
+
+    function startTimer() {
+        isStarted = true;
+        startTime = new Date();
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('formInput').style.display = 'grid';
+        document.getElementById('addBtn').style.display = 'block';
+        // finishBtn tetap hidden
+    }
+
+    // ---- Add Beam ----
+    function addBeam() {
+        const beamVal = document.getElementById('beamNo').value;
+        const operatorName = document.getElementById('opName').innerText;
+        const operatorShift = document.getElementById('opShift').innerText;
+        const panjangAkhir = parseFloat(document.getElementById('panjangAkhir').value) || 0;
+        const winding = document.getElementById('winding').value || 0;
+        const speed = parseFloat(document.getElementById('speed').value) || 0;
+        const ui = document.getElementById('uiValue').value;
+        const grade = document.getElementById('grade').value;
+        const ua = document.getElementById('ua').value;
+        const cacat = document.getElementById('cacat').value;
+        const amplas = document.getElementById('amplas').checked ? '✔️' : '❌';
+
+        if (!beamVal) { alert("Mohon isi nomor Beam!"); return; }
+        if (usedBeams.includes(beamVal)) {
+            alert("Beam ini sudah digunakan!");
+            return;
+        }
+        if (panjangAkhir <= 0) { alert("Mohon isi Panjang Akhir dengan benar!"); return; }
+        if (speed <= 0) { alert("Mohon isi Speed!"); return; }
+
+        const denier = getHeaderValue('denierValue');
+        const lembar = getHeaderValue('lembarValue');
+        let berat = 0;
+        if (denier > 0 && lembar > 0 && panjangAkhir > 0) {
+            berat = (denier * lembar * panjangAkhir) / 9000000;
+        }
+        const beratStr = berat.toFixed(2);
+
+        const msg = 
+            `Konfirmasi data Beam:\n\n` +
+            `Beam No.  : ${beamVal}\n` +
+            `UI        : ${ui || '-'}\n` +
+            `Speed     : ${speed}\n` +
+            `Panjang   : ${panjangAkhir} m\n` +
+            `Winding   : ${winding}\n` +
+            `Grade     : ${grade}\n` +
+            `UA        : ${ua || '-'}\n` +
+            `Amplas    : ${amplas}\n` +
+            `Cacat     : ${cacat || '-'}\n` +
+            `Berat     : ${beratStr} kg\n\n` +
+            `Apakah data sudah benar?`;
+
+        if (!confirm(msg)) return;
+
+        usedBeams.push(beamVal);
+        updateBeamList();
+
+        const now = new Date();
+        const waktuSelesai = formatTime(now);
+        const table = document.getElementById('beamTable').getElementsByTagName('tbody')[0];
+
+        const row = table.insertRow();
+        row.innerHTML = `
+            <td>${waktuSelesai}</td>
+            <td>${beamVal}</td>
+            <td>${ui}</td>
+            <td>${speed}</td>
+            <td>${panjangAkhir}</td>
+            <td>${winding}</td>
+            <td>${cacat}</td>
+            <td>${grade}</td>
+            <td>${ua}</td>
+            <td>${beratStr}</td>
+            <td>${amplas}</td>
+            <td>${operatorName}</td>
+            <td>${operatorShift}</td>
+            <td class="action-cell"><button class="btn-hapus" onclick="requestDelete(this)">Hapus</button></td>
+        `;
+
+        // Reset input
+        document.getElementById('beamNo').value = '';
+        document.getElementById('uiValue').value = '';
+        document.getElementById('cacat').value = '';
+        document.getElementById('ua').value = '';
+        document.getElementById('amplas').checked = false;
+
+        updateEstimasiSisa();
+        checkLimitAndUI(); // akan menampilkan finish jika sudah mencapai target
+    }
+
+    // ---- Hapus dengan password ----
+    function requestDelete(btn) {
+        const td = btn.parentNode;
+        td.innerHTML = `
+            <input type="password" id="passInput" placeholder="Pass" style="width:60px; padding:2px; font-size:0.75em;">
+            <button onclick="confirmDelete(this)" style="padding:2px 6px; margin:0; font-size:0.7em; background:#27ae60; color:white; border:none; border-radius:3px; cursor:pointer;">OK</button>
+            <button onclick="cancelDelete(this)" style="padding:2px 6px; margin:0; font-size:0.7em; background:#95a5a6; color:white; border:none; border-radius:3px; cursor:pointer;">Batal</button>
+        `;
+        td.querySelector('input[type="password"]').focus();
+    }
+
+    function confirmDelete(btn) {
+        const td = btn.parentNode;
+        const inputPass = td.querySelector('input[type="password"]');
+        const pass = inputPass ? inputPass.value : '';
+
+        if (pass === ADMIN_PASS) {
+            const row = td.parentNode;
+            const beamCell = row.cells[1];
+            const beamVal = beamCell ? beamCell.innerText : '';
+
+            const idx = usedBeams.indexOf(beamVal);
+            if (idx !== -1) usedBeams.splice(idx, 1);
+            updateBeamList();
+
+            row.parentNode.removeChild(row);
+
+            updateEstimasiSisa();
+            checkLimitAndUI(); // akan menampilkan form jika masih ada sisa dan start sudah ditekan
+        } else {
+            alert("Password salah!");
+            td.innerHTML = `<button class="btn-hapus" onclick="requestDelete(this)">Hapus</button>`;
+        }
+    }
+
+    function cancelDelete(btn) {
+        const td = btn.parentNode;
+        td.innerHTML = `<button class="btn-hapus" onclick="requestDelete(this)">Hapus</button>`;
+    }
+
+    function finishMO() {
+        if (confirm("MO akan diselesaikan. Yakin?")) { location.reload(); }
+    }
+</script>
+</body>
+</html>
