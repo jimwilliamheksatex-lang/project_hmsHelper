@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PPC Warping MES Workstation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: #1e293b;
+      --card-bg: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #475569;
+      --green-glow: #22c55e;
+      --yellow-alert: #eab308;
+      --red-alert: #ef4444;
+      --blue-setup: #3b82f6;
+      --col-machine-width: 160px;
+      --row-height: 72px;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    header {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 48px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: bold;
+      font-size: 0.95rem;
+    }
+    .logo-area img {
+      height: 38px;
+      width: 38px;
+      object-fit: contain;
+    }
+    .iot-badge {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid var(--green-glow);
+      color: var(--green-glow);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--green-glow);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        transform: scale(0.9);
+        opacity: 0.7;
+      }
+      50% {
+        transform: scale(1.4);
+        opacity: 1;
+      }
+    }
+    .workspace {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .gantt-section {
+      flex: 1;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      background: #0b1120;
+      overflow: hidden;
+      position: relative;
+    }
+    .gantt-scroll-container {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+    .gantt-header-row {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 45;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      height: 42px;
+      width: max-content;
+    }
+    .sticky-corner {
+      width: var(--col-machine-width);
+      min-width: var(--col-machine-width);
+      position: sticky;
+      left: 0;
+      top: 0;
+      z-index: 55;
+      background: var(--panel-bg);
+      border-right: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-weight: bold;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      box-shadow: 2px 0 6px rgba(0, 0, 0, 0.4);
+    }
+    .timeline-header-track {
+      display: flex;
+      height: 100%;
+    }
+    .day-header-group {
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid var(--border-color);
+    }
+    .day-title {
+      background: rgba(15, 23, 42, 0.85);
+      font-size: 0.65rem;
+      font-weight: bold;
+      padding: 2px 6px;
+      color: #38bdf8;
+      border-bottom: 1px solid var(--border-color);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .day-title.today-title {
+      background: #0369a1;
+      color: #fff;
+    }
+    .hours-row {
+      display: flex;
+      flex: 1;
+    }
+    .hour-slot {
+      border-right: 1px solid rgba(71, 85, 105, 0.5);
+      display: flex;
+      align-items: center;
+      padding-left: 4px;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    /* NOW LINE */
+    .now-line {
+      position: absolute;
+      top: 0;
+      width: 2.5px;
+      background: #ffffff;
+      z-index: 50;
+      pointer-events: none;
+      box-shadow: 0 0 12px 3px rgba(255, 255, 255, 0.7);
+      transition: left 0.4s linear;
+    }
+    .now-line::after {
+      content: 'SEKARANG';
+      position: absolute;
+      top: -1px;
+      left: 5px;
+      font-size: 0.55rem;
+      color: #ffffff;
+      font-weight: bold;
+      white-space: nowrap;
+      text-shadow: 0 0 6px #000;
+      letter-spacing: 0.5px;
+    }
+    /* MACHINE ROWS */
+    .machine-row {
+      display: flex;
+      height: var(--row-height);
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+      position: relative;
+      background: rgba(30, 41, 59, 0.18);
+      width: max-content;
+    }
+    .machine-label {
+      width: var(--col-machine-width);
+      min-width: var(--col-machine-width);
+      padding: 5px 10px;
+      border-right: 2px solid var(--border-color);
+      font-weight: bold;
+      background: #1e293b;
+      position: sticky;
+      left: 0;
+      z-index: 35;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 2px 0 6px rgba(0, 0, 0, 0.4);
+      transition: background 0.3s;
+    }
+    .machine-label.running-well {
+      background: #14532d;
+    }
+    .machine-label.machine-trouble {
+      background: #7f1d1d;
+    }
+    .machine-label .machine-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .machine-label .machine-yarn {
+      font-size: 0.6rem;
+      color: #f97316;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .machine-label .machine-mo {
+      font-size: 0.6rem;
+      color: #fde047;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .timeline-track-area {
+      position: relative;
+      display: flex;
+      height: 100%;
+    }
+    .timeline-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: flex;
+      height: 100%;
+      pointer-events: none;
+    }
+    .grid-slot {
+      height: 100%;
+      border-right: 1px solid rgba(71, 85, 105, 0.35);
+      display: flex;
+    }
+    .grid-subhour {
+      flex: 1;
+      border-right: 1px dotted rgba(71, 85, 105, 0.12);
+    }
+    .grid-subhour:last-child {
+      border-right: none;
+    }
+    .drop-track {
+      position: relative;
+      height: 100%;
+      z-index: 5;
+    }
+    /* GANTT BLOCKS */
+    .gantt-block {
+      position: absolute;
+      top: 8px;
+      height: calc(var(--row-height) - 16px);
+      border-radius: 5px;
+      padding: 4px 7px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      font-size: 0.64rem;
+      color: #fff;
+      box-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.45);
+      z-index: 10;
+      overflow: hidden;
+      white-space: nowrap;
+      transition: box-shadow 0.2s, opacity 0.2s;
+      border-left-width: 4px;
+      border-left-style: solid;
+      cursor: grab;
+    }
+    .gantt-block:active {
+      cursor: grabbing;
+    }
+    .gantt-block.locked-block {
+      cursor: not-allowed;
+      opacity: 0.85;
+      filter: grayscale(15%);
+    }
+    .gantt-block.fixed-block {
+      border: 2px solid #22c55e !important;
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.55);
+    }
+    .gantt-block.dragging-block {
+      opacity: 0.5;
+      border: 2px dashed #fff !important;
+      z-index: 25;
+    }
+    .status-running {
+      background: #0369a1;
+      border-left-color: #38bdf8;
+    }
+    .status-trouble {
+      background: #991b1b;
+      border-left-color: var(--red-alert);
+    }
+    .status-setup {
+      background: repeating-linear-gradient(45deg, #1e3a8a, #1e3a8a 8px, #1d4ed8 8px, #1d4ed8 16px);
+      border-left-color: var(--blue-setup);
+    }
+    .status-scheduled {
+      background: #0f4b6e;
+      border-left-color: #60a5fa;
+    }
+    .status-fixed {
+      background: #065f46;
+      border-left-color: #22c55e;
+    }
+    .block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      margin-bottom: 1px;
+      font-size: 0.62rem;
+    }
+    .block-sub {
+      font-size: 0.56rem;
+      opacity: 0.85;
+    }
+    .block-actions {
+      position: absolute;
+      top: 1px;
+      right: 3px;
+      display: flex;
+      gap: 2px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .gantt-block:hover .block-actions {
+      opacity: 1;
+    }
+    .btn-fix,
+    .btn-unfix,
+    .btn-remove-block {
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 0.5rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-fix:hover {
+      background: #22c55e;
+      border-color: #22c55e;
+    }
+    .btn-unfix:hover {
+      background: #eab308;
+      border-color: #eab308;
+    }
+    .btn-remove-block:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+    }
+    .snap-ghost {
+      position: absolute;
+      top: 8px;
+      height: calc(var(--row-height) - 16px);
+      background: rgba(34, 197, 94, 0.25);
+      border: 2px dashed #22c55e;
+      border-radius: 5px;
+      pointer-events: none;
+      display: none;
+      z-index: 15;
+      align-items: center;
+      padding: 0 6px;
+      font-size: 0.66rem;
+      color: #86efac;
+      font-weight: bold;
+    }
+    .snap-ghost.warn-ghost {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--red-alert);
+      color: #fca5a5;
+    }
+    .control-bar {
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 2px solid var(--border-color);
+      padding: 5px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 42px;
+      flex-shrink: 0;
+      z-index: 15;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .btn-sim {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 4px 9px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-sim:hover {
+      background: #475569;
+    }
+    .btn-sim.active-red {
+      background: var(--red-alert);
+      border-color: #f87171;
+    }
+    .btn-nav {
+      background: #0284c7;
+      border-color: #38bdf8;
+    }
+    .zoom-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: bold;
+    }
+    .zoom-slider {
+      width: 140px;
+      accent-color: #f97316;
+    }
+    .zoom-label {
+      color: #fff;
+      min-width: 60px;
+      text-align: center;
+      font-size: 0.68rem;
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    /* TABLE */
+    .table-section {
+      height: 270px;
+      min-height: 220px;
+      background: var(--panel-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 20;
+      border-top: 2px solid var(--border-color);
+    }
+    .table-header {
+      padding: 6px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .table-title {
+      font-size: 0.8rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .table-drop-hint {
+      font-size: 0.6rem;
+      color: #86efac;
+      margin-left: 6px;
+      font-weight: normal;
+    }
+    .filter-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .input-filter,
+    .select-filter {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 4px 7px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+    }
+    .table-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      padding: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.73rem;
+      table-layout: auto;
+      min-width: 1200px;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #0f172a;
+      padding: 7px 9px;
+      font-weight: bold;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 5;
+      white-space: nowrap;
+      position: relative;
+    }
+    th .resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      background: transparent;
+      z-index: 6;
+    }
+    th .resize-handle:hover {
+      background: #38bdf8;
+    }
+    td {
+      padding: 5px 9px;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+      color: var(--text-main);
+      vertical-align: middle;
+      white-space: normal;
+      word-wrap: break-word;
+      word-break: break-word;
+      max-width: 150px;
+    }
+    tr:hover {
+      background: rgba(51, 65, 85, 0.4);
+    }
+    tr.draggable-row {
+      cursor: grab;
+      transition: background 0.15s;
+    }
+    tr.draggable-row:hover {
+      background: rgba(56, 189, 248, 0.2);
+    }
+    tr.dragging-row {
+      opacity: 0.4;
+      background: #334155;
+    }
+    tr.drop-highlight {
+      background: rgba(34, 197, 94, 0.3) !important;
+      outline: 2px dashed #22c55e;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-ready {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+    .badge-scheduled {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+    .badge-running {
+      background: #0369a1;
+      color: #fff;
+    }
+    .badge-trouble {
+      background: #991b1b;
+      color: #fca5a5;
+    }
+    .badge-fixed {
+      background: #065f46;
+      color: #4ade80;
+      border: 1px solid #22c55e;
+    }
+    .badge-notready {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid #ef4444;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    .modal-box {
+      background: #1e293b;
+      border-radius: 10px;
+      width: 480px;
+      max-width: 95vw;
+      padding: 18px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .modal-box.warning-modal {
+      border: 2px solid var(--red-alert);
+    }
+    .modal-title {
+      font-size: 0.95rem;
+      font-weight: bold;
+      color: #fca5a5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .modal-text {
+      font-size: 0.76rem;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+    .modal-input-group {
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-input-group label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .modal-input-group input {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 5px 8px;
+      border-radius: 4px;
+      width: 70px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .btn-modal {
+      padding: 6px 12px;
+      border-radius: 5px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-cancel {
+      background: #475569;
+      color: #fff;
+    }
+    .btn-confirm-warn {
+      background: var(--red-alert);
+      color: #fff;
+    }
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      background: #333;
+      color: #fff;
+      padding: 9px 15px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      z-index: 300;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast.success {
+      background: #065f46;
+      border: 1px solid #22c55e;
+    }
+    .toast.warning {
+      background: #7c2d12;
+      border: 1px solid #f97316;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-area">
+      <img src="http://157.20.244.218:8880/hms/dist/img/logo.png" alt="Logo" />
+      <span>PPC Warping MES Workstation</span>
+    </div>
+    <div class="iot-badge"><div class="dot"></div><span>IoT: ONLINE (10 Mesin)</span></div>
+  </header>
+  <div class="workspace">
+    <div class="gantt-section" id="ganttSection">
+      <div class="gantt-scroll-container" id="ganttScroll">
+        <div class="gantt-header-row" id="ganttHeaderRow">
+          <div class="sticky-corner">MESIN (A-Z)</div>
+          <div class="timeline-header-track" id="timeHeaderTrack"></div>
+        </div>
+        <div id="ganttBody"></div>
+        <div class="snap-ghost" id="snapGhost"></div>
+        <div class="now-line" id="nowLine"></div>
+      </div>
+    </div>
+    <div class="control-bar">
+      <div class="arduino-controls">
+        <span style="font-size:0.65rem;font-weight:bold;color:var(--text-muted);">🔌 SIM:</span>
+        <button class="btn-sim active-red" id="btnToggleTrouble">🔴 Selesaikan Trouble MC1</button>
+        <button class="btn-nav btn-sim" onclick="scrollToToday()">🎯 Lompat ke Hari Ini</button>
+      </div>
+      <div class="zoom-control">
+        <span style="font-size:0.65rem;">🔍 Skala Waktu:</span>
+        <span style="font-size:0.55rem;">📉 ringkas</span>
+        <input type="range" class="zoom-slider" id="zoomSlider" min="0" max="7" step="1" value="0" oninput="onGranularityChange(this.value)">
+        <span style="font-size:0.55rem;">detail 📈</span>
+        <span class="zoom-label" id="zoomLabel">1 jam/slot</span>
+      </div>
+      <div style="font-size:0.6rem;color:#86efac;">💡 Drag blok ke tabel = batal | Klik kanan blok = Fix/Unfix</div>
+    </div>
+    <div class="table-section" id="tableSection">
+      <div class="table-header">
+        <div class="table-title"><span>📋 Warping Manufactoring Order</span><span class="table-drop-hint">⬇️ Drop blok di sini untuk kembalikan</span></div>
+        <div class="filter-controls">
+          <input type="text" id="searchInput" class="input-filter" placeholder="🔍 Cari..." oninput="filterTable()">
+          <select id="statusFilter" class="select-filter" onchange="filterTable()">
+            <option value="NOT_SCHEDULED">📌 Belum Dijadwalkan</option>
+            <option value="ALL">📋 Semua</option>
+            <option value="Ready">🟢 Ready</option>
+            <option value="Scheduled">🔵 Scheduled</option>
+            <option value="Fixed">✅ Fixed</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container"><table id="moTable"><thead><tr>
+        <th>No<div class="resize-handle"></div></th><th>Nomor MO<div class="resize-handle"></div></th><th>MC<div class="resize-handle"></div></th>
+        <th>Jenis Benang<div class="resize-handle"></div></th><th>SC<div class="resize-handle"></div></th><th>GB<div class="resize-handle"></div></th>
+        <th>Beam<div class="resize-handle"></div></th><th>Lembar<div class="resize-handle"></div></th><th>P/Beam<div class="resize-handle"></div></th>
+        <th>Target<div class="resize-handle"></div></th><th>Stok<div class="resize-handle"></div></th><th>Status<div class="resize-handle"></div></th>
+      </tr></thead><tbody id="moTableBody"></tbody></table></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="warningModal">
+    <div class="modal-box warning-modal">
+      <div class="modal-title"><span>⚠️ PERINGATAN</span></div>
+      <div class="modal-text" id="modalTextContent"></div>
+      <div class="modal-input-group" id="setupDurationGroup" style="display:none;">
+        <label>⏱️ Durasi pasang benang (menit):</label>
+        <input type="number" id="setupDurationInput" value="45" min="5" max="480" step="5">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-modal btn-cancel" onclick="closeModal()">❌ Batal</button>
+        <button class="btn-modal btn-confirm-warn" id="btnConfirmReroute">⚡ Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function() {
+      // ===== KONFIGURASI =====
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const TOTAL_DAYS = 30;
+      const TODAY_INDEX = 15;
+      const BASE_DATE = new Date(today);
+      BASE_DATE.setDate(BASE_DATE.getDate() - TODAY_INDEX);
+
+      const CONFIG = {
+        totalDays: TOTAL_DAYS,
+        todayIndex: TODAY_INDEX,
+        baseDate: BASE_DATE,
+        hourWidthBase: 120,
+        colMachineWidth: 160,
+        rowHeightBase: 72,
+        hoursPerSlot: 1,
+        granularityOptions: [1, 2, 3, 4, 6, 8, 12, 24],
+        granularityIndex: 0,
+      };
+
+      const totalHours = CONFIG.totalDays * 24;
+
+      function getSlotWidth() { return CONFIG.hourWidthBase; }
+
+      function getTotalSlots() { return totalHours / CONFIG.hoursPerSlot; }
+
+      function getTotalWidthPx() { return getTotalSlots() * getSlotWidth(); }
+
+      function dateToOffset(date) {
+        const diffMs = date - CONFIG.baseDate;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        return (diffHours / CONFIG.hoursPerSlot) * getSlotWidth();
+      }
+
+      function durationToWidth(durationMinutes) {
+        const durationHours = durationMinutes / 60;
+        return (durationHours / CONFIG.hoursPerSlot) * getSlotWidth();
+      }
+
+      function formatTime(totalMinutes) {
+        const h = Math.floor(totalMinutes / 60) % 24;
+        const m = Math.round(totalMinutes % 60);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+
+      // ===== DATA =====
+      const machines = [
+        { id: 'mc1', name: 'MC1', label: 'MC1', speed: 700 },
+        { id: 'mc2', name: 'MC2', label: 'MC2', speed: 740 },
+        { id: 'mc3', name: 'MC3', label: 'MC3', speed: 710 },
+        { id: 'mc4', name: 'MC4', label: 'MC4', speed: 730 },
+        { id: 'mc5', name: 'MC5', label: 'MC5', speed: 690 },
+        { id: 'mc6', name: 'MC6', label: 'MC6', speed: 720 },
+        { id: 'mc7', name: 'MC7', label: 'MC7', speed: 750 },
+        { id: 'mc12', name: 'MC12', label: 'MC12', speed: 680 },
+        { id: 'mc13', name: 'MC13', label: 'MC13', speed: 750 },
+        { id: 'mc-split', name: 'MC-SPLIT', label: 'MC-SPLIT', speed: 800 },
+      ];
+
+      const rawMO = [
+      { no: 53, mo: 'MO260700022', tgl: '01-Jul-26', mc: 'MC13', yarn: '[PH-0215] DTY 150/48 SOFT I/M/520', lot: '343533', sc: 'SC18160', gb: 'GB1', jmlBeam: '6BB', lembar: '520', panjangBeam: '1582', target: '9491' },
+      { no: 54, mo: 'MO260700040', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC/567', lot: '501036', sc: 'SC18270', gb: 'GB3', jmlBeam: '6BB', lembar: '567', panjangBeam: '15783', target: '94697' },
+      { no: 55, mo: 'MO260700041', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC/564', lot: '501036', sc: 'SC18270', gb: 'GB4', jmlBeam: '6BB', lembar: '564', panjangBeam: '3804', target: '22824' },
+      { no: 56, mo: 'MO260700043', tgl: '01-Jul-26', mc: 'MC4', yarn: '[PH-0031] SDY 50-36 SDC/483', lot: '501036', sc: 'SC18270', gb: 'GB2', jmlBeam: '5BB', lembar: '483', panjangBeam: '25083', target: '125415' },
+      { no: 57, mo: 'MO260700044', tgl: '01-Jul-26', mc: 'MC4', yarn: '[PH-0031] SDY 50-36 SDC/480', lot: '501036', sc: 'SC18270', gb: 'GB3', jmlBeam: '5BB', lembar: '480', panjangBeam: '5900', target: '29500' },
+      { no: 58, mo: 'MO260700046', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC/483', lot: '501036', sc: 'SC18270', gb: 'GB2', jmlBeam: '5BB', lembar: '483', panjangBeam: '21500', target: '107500' },
+      { no: 59, mo: 'MO260700047', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC/480', lot: '501036', sc: 'SC18270', gb: 'GB3', jmlBeam: '5BB', lembar: '480', panjangBeam: '5440', target: '27200' },
+      { no: 60, mo: 'MO260700052', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18301', gb: 'GB2', jmlBeam: '6BB', lembar: '234', panjangBeam: '6989', target: '41934' },
+      { no: 61, mo: 'MO260700053', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18301', gb: 'GB3', jmlBeam: '6BB', lembar: '234', panjangBeam: '6989', target: '41934' },
+      { no: 62, mo: 'MO260700054', tgl: '01-Jul-26', mc: 'MC-SPLIT', yarn: '[PH-0702] POLYESTER 300-10', sc: 'SC18301', gb: 'GB4', jmlBeam: '6BB', lembar: '470', panjangBeam: '24281', target: '145688' },
+      { no: 63, mo: 'MO260700055', tgl: '01-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18301', gb: 'GB5', jmlBeam: '6BB', lembar: '468', panjangBeam: '4659', target: '27956' },
+      { no: 64, mo: 'MO260700058', tgl: '02-Jul-26', mc: 'MC7', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18260', gb: 'GB1', jmlBeam: '6BB', lembar: '516', panjangBeam: '15000', target: '90000' },
+      { no: 65, mo: 'MO260700059', tgl: '02-Jul-26', mc: 'MC6', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18138', gb: 'GB1', jmlBeam: '6BB', lembar: '402', panjangBeam: '15', target: '90000' },
+      { no: 66, mo: 'MO260700060', tgl: '02-Jul-26', mc: 'MC3', yarn: '[NH-0304] NYLON NFY 30-1-B', sc: 'SC18127', gb: 'GB1', jmlBeam: '5BB', lembar: '535', panjangBeam: '15', target: '75000' },
+      { no: 67, mo: 'MO260700061', tgl: '02-Jul-26', mc: 'MC6', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC17524', gb: 'GB1', jmlBeam: '6BB', lembar: '384', panjangBeam: '15000', target: '90000' },
+      { no: 68, mo: 'MO260700063', tgl: '02-Jul-26', mc: 'MC1', yarn: '[NH-0321] NYLON NFY 20-1-S', lot: '48A0', sc: 'SC18355', gb: 'GB2', jmlBeam: '9BB', lembar: '588', panjangBeam: '7507', target: '67565' },
+      { no: 69, mo: 'MO260700065', tgl: '02-Jul-26', mc: 'MC1', yarn: '[NH-0321] NYLON NFY 20-1-S', lot: '48A0', sc: 'SC18355', gb: 'GB2', jmlBeam: '9BB', lembar: '588', panjangBeam: '39673', target: '357869' },
+      { no: 70, mo: 'MO260700066', tgl: '02-Jul-26', mc: 'MC1', yarn: '[NH-0321] NYLON NFY 20-1-S', lot: '48A0', sc: 'SC18355', gb: 'GB3', jmlBeam: '9BB', lembar: '588', panjangBeam: '15096', target: '135861' },
+      { no: 71, mo: 'MO260700074', tgl: '02-Jul-26', mc: 'MC1', yarn: '[NH-0321] NYLON NFY 20-1-S', lot: '48A0', sc: 'SC18355', gb: 'GB2', jmlBeam: '9BB', lembar: '588', panjangBeam: '19521', target: '175691' },
+      { no: 72, mo: 'MO260700075', tgl: '02-Jul-26', mc: 'MC1', yarn: '[NH-0321] NYLON NFY 20-1-S', lot: '48A0', sc: 'SC18355', gb: 'GB3', jmlBeam: '9BB', lembar: '588', panjangBeam: '7527', target: '67741' },
+      { no: 73, mo: 'MO260700079', tgl: '02-Jul-26', mc: 'MC12', yarn: '[PH-3601] PET SDY 50-24 RECYCLED', sc: 'SC18367', gb: 'GB1', jmlBeam: '7BB', lembar: '642', panjangBeam: '12053', target: '84372' },
+      { no: 74, mo: 'MO260700110', tgl: '03-Jul-26', mc: 'MC5', yarn: '[PH-0207] POLY SDY SD 75-36', sc: 'SC18221', gb: 'GB1', jmlBeam: '8BB', lembar: '636', panjangBeam: '18542', target: '148335' },
+      { no: 75, mo: 'MO260700112', tgl: '03-Jul-26', mc: 'MC2', yarn: '[NH-0315] NFY 30-1-S', sc: 'SC17592', gb: 'GB2', jmlBeam: '8BB', lembar: '673', panjangBeam: '733', target: '5866' },
+      { no: 76, mo: 'MO260700120', tgl: '03-Jul-26', mc: 'MC4', yarn: '[PH-0031] SDY 50-36 SDC', lot: '501036', sc: 'SC18380', gb: 'GB6', jmlBeam: '6BB', lembar: '480', panjangBeam: '7125', target: '42750' },
+      { no: 77, mo: 'MO260700132', tgl: '03-Jul-26', mc: 'MC3', yarn: '[NH-0304] NYLON NFY 30-1-B', sc: 'SC18169', gb: 'GB1', jmlBeam: '10BB', lembar: '413', panjangBeam: '15', target: '150000' },
+    ];
+
+      function parseNumber(str) { if (!str) return 0; return parseFloat(str.replace(/[^0-9,.]/g, '').replace(',',
+          '.')) || 0; }
+
+      const moDataList = rawMO.map((item, i) => {
+        const id = `mo-${String(i + 1).padStart(3, '0')}`;
+        const beams = parseInt(item.jmlBeam.replace('BB', '')) || 0;
+        const stockReady = !(i % 5 === 0);
+        return {
+          id,
+          no: item.no,
+          mo: item.mo,
+          mc: item.mc,
+          yarn: item.yarn,
+          sc: item.sc,
+          gb: item.gb,
+          jmlBeam: item.jmlBeam,
+          beams,
+          lembar: item.lembar,
+          ends: parseNumber(item.lembar),
+          panjangBeam: parseNumber(item.panjangBeam),
+          target: parseNumber(item.target),
+          length: parseNumber(item.target),
+          stockReady,
+          stock: stockReady ? '🟢 Ready' : '🔴 Not Ready',
+          status: 'Ready',
+          ganttMachine: null,
+          ganttStartPx: null,
+          ganttDuration: null,
+          ganttStatus: null,
+          fixed: false,
+        };
+      });
+
+      function calcDuration(length, speed, beams) {
+        if (!speed) return 0;
+        return Math.ceil((length / (speed * 0.7) + 15) * beams);
+      }
+
+      function getDurationForMO(moId, machineLabel) {
+        const mo = moDataList.find(x => x.id === moId);
+        if (!mo) return 0;
+        const m = machines.find(mm => mm.label === machineLabel);
+        return m ? calcDuration(mo.length, m.speed, mo.beams) : 0;
+      }
+
+      // ===== RENDER TIMELINE HEADER =====
+      function renderTimelineHeader() {
+        const container = document.getElementById('timeHeaderTrack');
+        container.innerHTML = '';
+        const { totalDays, todayIndex, baseDate, hoursPerSlot } = CONFIG;
+        const sw = getSlotWidth();
+        const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const slotsPerDay = 24 / hoursPerSlot;
+
+        for (let d = 0; d < totalDays; d++) {
+          const date = new Date(baseDate);
+          date.setDate(baseDate.getDate() + d);
+          const dayGroup = document.createElement('div');
+          dayGroup.className = 'day-header-group';
+          dayGroup.style.width = `${slotsPerDay * sw}px`;
+
+          const title = document.createElement('div');
+          title.className = 'day-title';
+          const dayStr = `${dayNames[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`;
+          if (d === todayIndex) { title.classList.add('today-title');
+            title.innerText = `🎯 HARI INI (${dayStr})`; } else if (d < todayIndex) { title.innerText =
+              `⏪ ${dayStr}`; } else { title.innerText = `⏩ ${dayStr}`; }
+          dayGroup.appendChild(title);
+
+          const hoursRow = document.createElement('div');
+          hoursRow.className = 'hours-row';
+          for (let s = 0; s < slotsPerDay; s++) {
+            const startH = s * hoursPerSlot;
+            const endH = Math.min(startH + hoursPerSlot, 24);
+            const slot = document.createElement('div');
+            slot.className = 'hour-slot';
+            slot.style.width = `${sw}px`;
+            slot.style.minWidth = `${sw}px`;
+            slot.innerText = hoursPerSlot === 24 ? `${String(startH).padStart(2, '0')}:00` :
+              `${String(startH).padStart(2, '0')}:00-${String(endH).padStart(2, '0')}:00`;
+            hoursRow.appendChild(slot);
+          }
+          dayGroup.appendChild(hoursRow);
+          container.appendChild(dayGroup);
+        }
+      }
+
+      // ===== RENDER GANTT =====
+      function renderGantt() {
+        const body = document.getElementById('ganttBody');
+        body.innerHTML = '';
+        const sw = getSlotWidth();
+        const tw = getTotalWidthPx();
+        const rh = CONFIG.rowHeightBase;
+        document.documentElement.style.setProperty('--row-height', `${rh}px`);
+        const slotsPerDay = 24 / CONFIG.hoursPerSlot;
+
+        machines.forEach(machine => {
+          const row = document.createElement('div');
+          row.className = 'machine-row';
+          row.dataset.machine = machine.label;
+          row.style.height = `${rh}px`;
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'machine-label';
+          labelDiv.innerHTML = `<div class="machine-name">${machine.name}</div>`;
+          row.appendChild(labelDiv);
+          const trackArea = document.createElement('div');
+          trackArea.className = 'timeline-track-area';
+          const grid = document.createElement('div');
+          grid.className = 'timeline-grid';
+          grid.style.width = `${tw}px`;
+          for (let d = 0; d < CONFIG.totalDays; d++) {
+            for (let s = 0; s < slotsPerDay; s++) {
+              const slotDiv = document.createElement('div');
+              slotDiv.className = 'grid-slot';
+              slotDiv.style.width = `${sw}px`;
+              slotDiv.style.minWidth = `${sw}px`;
+              for (let h = 0; h < CONFIG.hoursPerSlot; h++) {
+                const sub = document.createElement('div');
+                sub.className = 'grid-subhour';
+                slotDiv.appendChild(sub);
+              }
+              grid.appendChild(slotDiv);
+            }
+          }
+          trackArea.appendChild(grid);
+          const dropTrack = document.createElement('div');
+          dropTrack.className = 'drop-track';
+          dropTrack.dataset.machine = machine.label;
+          dropTrack.style.width = `${tw}px`;
+          trackArea.appendChild(dropTrack);
+          row.appendChild(trackArea);
+          body.appendChild(row);
+        });
+
+        // Blok awal
+        const now = new Date();
+        const moRunning = moDataList.find(m => m.stockReady && m.mc === 'MC7' && m.status === 'Ready');
+        const moTrouble = moDataList.find(m => m.stockReady && m.mc === 'MC1' && m.status === 'Ready');
+        const moSetup = moDataList.find(m => m.stockReady && m.mc === 'MC3' && m.status === 'Ready');
+
+        if (moRunning) {
+          const m = machines.find(mm => mm.label === moRunning.mc);
+          if (m) {
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0);
+            const lp = dateToOffset(start);
+            const dur = getDurationForMO(moRunning.id, m.label);
+            createBlock(document.querySelector(`.drop-track[data-machine="${m.label}"]`), moRunning, lp, dur,
+              'running', true, false);
+            moRunning.status = 'Running';
+            moRunning.ganttMachine = m.label;
+            moRunning.ganttStartPx = lp;
+            moRunning.ganttDuration = dur;
+            moRunning.ganttStatus = 'running';
+          }
+        }
+        if (moTrouble) {
+          const m = machines.find(mm => mm.label === moTrouble.mc);
+          if (m) {
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30);
+            const lp = dateToOffset(start);
+            const dur = getDurationForMO(moTrouble.id, m.label);
+            createBlock(document.querySelector(`.drop-track[data-machine="${m.label}"]`), moTrouble, lp, dur,
+              'trouble', false, false);
+            moTrouble.status = 'Trouble';
+            moTrouble.ganttMachine = m.label;
+            moTrouble.ganttStartPx = lp;
+            moTrouble.ganttDuration = dur;
+            moTrouble.ganttStatus = 'trouble';
+          }
+        }
+        if (moSetup) {
+          const m = machines.find(mm => mm.label === moSetup.mc);
+          if (m) {
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0);
+            const lp = dateToOffset(start);
+            const dur = getDurationForMO(moSetup.id, m.label);
+            createBlock(document.querySelector(`.drop-track[data-machine="${m.label}"]`), moSetup, lp, dur, 'setup',
+              false, false);
+            moSetup.status = 'Setup';
+            moSetup.ganttMachine = m.label;
+            moSetup.ganttStartPx = lp;
+            moSetup.ganttDuration = dur;
+            moSetup.ganttStatus = 'setup';
+          }
+        }
+        updateMachineLabels();
+        updateNowLine();
+      }
+
+      function createBlock(track, mo, leftPx, durMin, statusClass, locked, fixed, extraSetup = 0) {
+        const block = document.createElement('div');
+        block.className = `gantt-block status-${statusClass}`;
+        if (locked) block.classList.add('locked-block');
+        if (fixed) block.classList.add('fixed-block');
+        block.id = `block-${mo.id}-${Date.now()}`;
+        block.dataset.id = mo.id;
+        block.dataset.mo = mo.mo;
+        block.dataset.sc = mo.sc;
+        block.dataset.yarn = mo.yarn;
+        block.dataset.duration = durMin;
+        block.style.left = `${leftPx}px`;
+        block.style.width = `${durationToWidth(durMin)}px`;
+        block.setAttribute('draggable', locked ? 'false' : 'true');
+        const startMin = (leftPx / getSlotWidth()) * CONFIG.hoursPerSlot * 60;
+        const endMin = startMin + durMin;
+        let label = statusClass === 'running' ? '🟢 RUNNING' : statusClass === 'trouble' ? '🔴 TROUBLE' : statusClass ===
+          'setup' ? '🔵 SETUP' : statusClass === 'fixed' ? '✅ FIXED' : '🟡 SCHEDULED';
+        if (locked && statusClass === 'running') label += ' 🔒';
+        block.innerHTML = `
+          <div class="block-header"><span>${mo.mo} • ${mo.sc}</span><span>${label}</span></div>
+          <div class="block-sub">${mo.ends} Ends | ${formatTime(startMin)}-${formatTime(endMin)} (${durMin} mnt)${extraSetup>0?' +setup '+extraSetup+'mnt':''}</div>
+          <div class="block-actions">
+            ${!fixed && statusClass==='scheduled'?'<button class="btn-fix">🔒 Fix</button>':''}
+            ${fixed?'<button class="btn-unfix">🔓 Unfix</button>':''}
+            ${!locked?'<button class="btn-remove-block">🗑️</button>':''}
+          </div>`;
+        track.appendChild(block);
+        block.addEventListener('click', e => {
+          if (e.target.closest('.btn-fix')) { fixBlock(block, mo); return; }
+          if (e.target.closest('.btn-unfix')) { unfixBlock(block, mo); return; }
+          if (e.target.closest('.btn-remove-block')) { removeBlock(block, mo); return; }
+        });
+        block.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          const isF = block.classList.contains('fixed-block');
+          const isL = block.classList.contains('locked-block');
+          if (isF) { if (confirm(`Unfix ${mo.mo}?`)) unfixBlock(block, mo); } else if (!isL) { if (confirm(
+              `Fix ${mo.mo}?`)) fixBlock(block, mo); }
+        });
+        return block;
+      }
+
+      function fixBlock(block, mo) {
+        block.classList.add('fixed-block', 'locked-block');
+        block.classList.remove('status-scheduled');
+        block.classList.add('status-fixed');
+        block.setAttribute('draggable', 'false');
+        block.querySelector('.block-header span:last-child').innerHTML = '✅ FIXED';
+        mo.status = 'Fixed';
+        mo.fixed = true;
+        mo.ganttStatus = 'fixed';
+        updateMachineLabels();
+        renderTable();
+        showToast(`✅ ${mo.mo} di-FIX.`);
+      }
+
+      function unfixBlock(block, mo) {
+        block.classList.remove('fixed-block', 'locked-block', 'status-fixed');
+        block.classList.add('status-scheduled');
+        block.setAttribute('draggable', 'true');
+        block.querySelector('.block-header span:last-child').innerHTML = '🟡 SCHEDULED';
+        mo.status = 'Scheduled';
+        mo.fixed = false;
+        mo.ganttStatus = 'scheduled';
+        updateMachineLabels();
+        renderTable();
+        showToast(`🔓 ${mo.mo} di-unfix.`, 'warning');
+      }
+
+      function removeBlock(block, mo) {
+        block.remove();
+        mo.status = 'Ready';
+        mo.ganttMachine = null;
+        mo.ganttStartPx = null;
+        mo.ganttDuration = null;
+        mo.ganttStatus = null;
+        mo.fixed = false;
+        updateMachineLabels();
+        renderTable();
+        showToast(`🗑️ ${mo.mo} dikembalikan.`, 'warning');
+      }
+
+      // ===== LABEL MESIN =====
+      function updateMachineLabels() {
+        machines.forEach(machine => {
+          const row = document.querySelector(`.machine-row[data-machine="${machine.label}"]`);
+          if (!row) return;
+          const labelDiv = row.querySelector('.machine-label');
+          labelDiv.querySelectorAll('.machine-yarn,.machine-mo').forEach(e => e.remove());
+          labelDiv.classList.remove('running-well', 'machine-trouble');
+          const active = getActiveBlock(machine.label);
+          if (active) {
+            const yarn = active.dataset.yarn || '-';
+            const mo = active.dataset.mo || '-';
+            const isT = active.classList.contains('status-trouble');
+            if (isT) labelDiv.classList.add('machine-trouble');
+            else if (active.classList.contains('status-running') || active.classList.contains('status-fixed'))
+              labelDiv.classList.add('running-well');
+            const yd = document.createElement('div');
+            yd.className = 'machine-yarn';
+            yd.textContent = `🧵 ${yarn.substring(0,28)}`;
+            labelDiv.appendChild(yd);
+            const md = document.createElement('div');
+            md.className = 'machine-mo';
+            md.textContent = `📋 ${mo}`;
+            if (isT) md.style.color = '#fca5a5';
+            labelDiv.appendChild(md);
+          } else {
+            const idle = document.createElement('div');
+            idle.className = 'machine-yarn';
+            idle.textContent = '⏸️ Idle';
+            idle.style.color = '#f97316';
+            labelDiv.appendChild(idle);
+          }
+        });
+      }
+
+      function getActiveBlock(machineLabel) {
+        const track = document.querySelector(`.drop-track[data-machine="${machineLabel}"]`);
+        if (!track) return null;
+        for (let b of track.querySelectorAll('.gantt-block')) {
+          if (b.classList.contains('status-running') || b.classList.contains('status-trouble') || b.classList.contains(
+              'status-setup') || b.classList.contains('status-fixed')) return b;
+        }
+        return null;
+      }
+
+      // ===== NOW LINE =====
+      function updateNowLine() {
+        const nowLine = document.getElementById('nowLine');
+        const now = new Date();
+        const offset = dateToOffset(now);
+        nowLine.style.left = `${offset}px`;
+        nowLine.style.display = 'block';
+        const headerH = document.getElementById('ganttHeaderRow')?.offsetHeight || 42;
+        const bodyH = document.getElementById('ganttBody')?.offsetHeight || 0;
+        nowLine.style.height = `${headerH + bodyH}px`;
+        nowLine.style.top = '0';
+
+        document.querySelectorAll('.gantt-block').forEach(block => {
+          const lp = parseFloat(block.style.left);
+          const wp = parseFloat(block.style.width);
+          const endPx = lp + wp;
+          const moId = block.dataset.id;
+          const mo = moDataList.find(x => x.id === moId);
+          if (!mo) return;
+          const isT = block.classList.contains('status-trouble');
+          const isF = block.classList.contains('fixed-block');
+          const isR = block.classList.contains('status-running');
+          if (isF || isR) { block.classList.add('locked-block');
+            block.setAttribute('draggable', 'false'); } else if (endPx < offset && !isT) { block.classList.add(
+              'locked-block');
+            block.setAttribute('draggable', 'false'); if (mo.status === 'Scheduled') { mo.status = 'Running';
+              mo.ganttStatus = 'running'; } } else if (isT) { block.classList.remove('locked-block');
+            block.setAttribute('draggable', 'true'); } else { block.classList.remove('locked-block');
+            block.setAttribute('draggable', 'true'); }
+        });
+        updateMachineLabels();
+      }
+
+      // ===== TABLE =====
+      function renderTable() {
+        const sv = document.getElementById('searchInput').value.toLowerCase();
+        const fv = document.getElementById('statusFilter').value;
+        const tbody = document.getElementById('moTableBody');
+        tbody.innerHTML = '';
+        moDataList.forEach(item => {
+          if (!item.mo.toLowerCase().includes(sv) && !item.sc.toLowerCase().includes(sv) && !item.yarn.toLowerCase()
+            .includes(sv)) return;
+          if (fv === 'NOT_SCHEDULED' && !['Ready', 'Waiting', 'Shortage'].includes(item.status)) return;
+          if (fv !== 'ALL' && fv !== 'NOT_SCHEDULED' && item.status !== fv) return;
+          const tr = document.createElement('tr');
+          tr.dataset.id = item.id;
+          const draggable = ['Ready', 'Waiting', 'Shortage'].includes(item.status);
+          if (draggable) { tr.classList.add('draggable-row');
+            tr.setAttribute('draggable', 'true'); } else { tr.style.opacity = '0.5';
+            tr.setAttribute('draggable', 'false'); }
+          const badges = {
+            'Ready': '<span class="badge badge-ready">🟢 Ready</span>',
+            'Scheduled': '<span class="badge badge-scheduled">🔵 Scheduled</span>',
+            'Running': '<span class="badge badge-running">⚙️ Running</span>',
+            'Trouble': '<span class="badge badge-trouble">🔴 Trouble</span>',
+            'Fixed': '<span class="badge badge-fixed">✅ Fixed</span>',
+          };
+          tr.innerHTML = `
+            <td>${item.no}</td><td><strong>${item.mo}</strong></td><td>${item.mc}</td><td>🧵 ${item.yarn}</td>
+            <td>${item.sc}</td><td>${item.gb}</td><td>${item.jmlBeam}</td><td>${item.lembar}</td>
+            <td>${item.panjangBeam}</td><td>${item.target}</td>
+            <td>${item.stockReady?'<span class="badge badge-ready">🟢 Ready</span>':'<span class="badge badge-notready">🔴 Not Ready</span>'}</td>
+            <td>${badges[item.status]||badges['Ready']}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function filterTable() { renderTable(); }
+
+      function scrollToToday() {
+        const now = new Date();
+        const offset = dateToOffset(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0));
+        document.getElementById('ganttScroll').scrollTo({ left: offset - 100, behavior: 'smooth' });
+      }
+
+      // ===== GRANULARITY / ZOOM =====
+      function onGranularityChange(index) {
+        CONFIG.granularityIndex = parseInt(index);
+        CONFIG.hoursPerSlot = CONFIG.granularityOptions[CONFIG.granularityIndex];
+        const hps = CONFIG.hoursPerSlot;
+        const label = hps === 24 ? '1 hari/slot' : `${hps} jam/slot`;
+        document.getElementById('zoomLabel').textContent = label;
+        document.documentElement.style.setProperty('--row-height', `${CONFIG.rowHeightBase}px`);
+        renderTimelineHeader();
+        renderGantt();
+        renderTable();
+        updateNowLine();
+        setTimeout(() => scrollToToday(), 150);
+      }
+
+      // ===== DRAG & DROP =====
+      let draggedData = null,
+        draggedElement = null,
+        dragSource = null;
+
+      function initDragDrop() {
+        const ganttScroll = document.getElementById('ganttScroll');
+        const snapGhost = document.getElementById('snapGhost');
+        const tableSection = document.getElementById('tableSection');
+        const tbody = document.getElementById('moTableBody');
+
+        tbody.addEventListener('dragstart', e => {
+          const row = e.target.closest('tr.draggable-row');
+          if (!row) return;
+          const item = moDataList.find(x => x.id === row.dataset.id);
+          if (!item) return;
+          row.classList.add('dragging-row');
+          dragSource = 'table';
+          draggedData = { id: item.id, mo: item.mo, sc: item.sc, yarn: item.yarn, ends: item.ends, length: item
+              .length, beams: item.beams, fromMachine: null, stockReady: item.stockReady };
+          draggedElement = null;
+        });
+        tbody.addEventListener('dragend', e => {
+          const row = e.target.closest('tr');
+          if (row) row.classList.remove('dragging-row');
+          snapGhost.style.display = 'none';
+        });
+        ganttScroll.addEventListener('dragstart', e => {
+          const block = e.target.closest('.gantt-block');
+          if (!block || block.classList.contains('locked-block') || block.getAttribute('draggable') ===
+            'false') { e.preventDefault(); return; }
+          block.classList.add('dragging-block');
+          dragSource = 'gantt';
+          draggedElement = block;
+          const track = block.closest('.drop-track');
+          const mo = moDataList.find(x => x.id === block.dataset.id);
+          if (!mo) return;
+          draggedData = { id: mo.id, mo: mo.mo, sc: mo.sc, yarn: mo.yarn, ends: mo.ends, length: mo.length,
+            beams: mo.beams, fromMachine: track?.dataset.machine || null, stockReady: mo.stockReady,
+          fixed: mo.fixed };
+        });
+        ganttScroll.addEventListener('dragend', e => {
+          const block = e.target.closest('.gantt-block');
+          if (block) block.classList.remove('dragging-block');
+          snapGhost.style.display = 'none';
+          document.querySelectorAll('tr.drop-highlight').forEach(r => r.classList.remove('drop-highlight'));
+        });
+        ganttScroll.addEventListener('dragover', e => {
+          const track = e.target.closest('.drop-track');
+          if (!track || !draggedData) return;
+          e.preventDefault();
+          const rect = track.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const sw = getSlotWidth();
+          const snappedX = Math.round(mx / (sw / CONFIG.hoursPerSlot)) * (sw / CONFIG.hoursPerSlot);
+          const dur = getDurationForMO(draggedData.id, track.dataset.machine);
+          const wp = durationToWidth(dur);
+          track.appendChild(snapGhost);
+          snapGhost.style.display = 'flex';
+          snapGhost.style.left = `${snappedX}px`;
+          snapGhost.style.width = `${wp}px`;
+          const active = getActiveBlock(track.dataset.machine);
+          const yarnMis = active && active.dataset.yarn !== draggedData.yarn;
+          const reroute = draggedData.fromMachine && draggedData.fromMachine !== track.dataset.machine;
+          if (yarnMis || reroute) {
+            snapGhost.classList.add('warn-ghost');
+            snapGhost.innerHTML =
+              `⚠️ ${track.dataset.machine} (${dur} mnt)${yarnMis?' - BEDA BENANG!':''}`;
+          } else {
+            snapGhost.classList.remove('warn-ghost');
+            snapGhost.innerHTML = `📍 ${formatTime((snappedX/sw)*CONFIG.hoursPerSlot*60)} (${dur} mnt)`;
+          }
+        });
+        ganttScroll.addEventListener('dragleave', e => { if (e.target.closest('.drop-track')) snapGhost.style
+            .display = 'none'; });
+        ganttScroll.addEventListener('drop', e => {
+          e.preventDefault();
+          const track = e.target.closest('.drop-track');
+          if (!track || !draggedData) return;
+          snapGhost.style.display = 'none';
+          const rect = track.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const sw = getSlotWidth();
+          const snappedX = Math.round(mx / (sw / CONFIG.hoursPerSlot)) * (sw / CONFIG.hoursPerSlot);
+          const active = getActiveBlock(track.dataset.machine);
+          const yarnMis = active && active.dataset.yarn !== draggedData.yarn;
+          const reroute = draggedData.fromMachine && draggedData.fromMachine !== track.dataset.machine;
+          if (yarnMis || reroute) {
+            showWarning(draggedData, track.dataset.machine, snappedX, track, yarnMis, active?.dataset.yarn);
+            return;
+          }
+          executeDrop(draggedData, track.dataset.machine, snappedX, track, false, 0);
+        });
+        tableSection.addEventListener('dragover', e => {
+          if (dragSource !== 'gantt' || !draggedData) return;
+          e.preventDefault();
+          tbody.classList.add('drop-highlight');
+        });
+        tableSection.addEventListener('dragleave', () => { tbody.classList.remove('drop-highlight'); });
+        tableSection.addEventListener('drop', e => {
+          e.preventDefault();
+          tbody.classList.remove('drop-highlight');
+          if (dragSource !== 'gantt' || !draggedData || !draggedElement) return;
+          const mo = moDataList.find(x => x.id === draggedData.id);
+          if (!mo) return;
+          if (mo.fixed) { showToast('⚠️ MO Fixed tidak bisa dikembalikan.', 'warning'); return; }
+          removeBlock(draggedElement, mo);
+          draggedElement = null;
+          draggedData = null;
+          dragSource = null;
+        });
+      }
+
+      let pendingReroute = null;
+
+      function showWarning(data, targetM, snappedX, track, yarnMis, activeYarn) {
+        pendingReroute = { data, targetM, snappedX, track, yarnMis };
+        let msg =
+          `Tempatkan <strong>${data.mo}</strong> (${data.yarn}) ke <strong>${targetM}</strong>.<br><br>`;
+        if (yarnMis) {
+          msg +=
+            `<span style="color:#f97316;">⚠️ BENANG BERBEDA!</span> Mesin pakai <strong>${activeYarn}</strong>.<br>`;
+          msg += `Masukkan estimasi durasi pemasangan benang:<br>`;
+          document.getElementById('setupDurationGroup').style.display = 'flex';
+        } else { document.getElementById('setupDurationGroup').style.display = 'none'; }
+        if (!data.stockReady) msg +=
+          `<br><span style="color:#f87171;">🔴 Stok belum Ready! Pastikan tersedia.</span>`;
+        document.getElementById('modalTextContent').innerHTML = msg;
+        document.getElementById('warningModal').style.display = 'flex';
+      }
+
+      function closeModal() {
+        document.getElementById('warningModal').style.display = 'none';
+        document.getElementById('setupDurationGroup').style.display = 'none';
+        pendingReroute = null;
+      }
+
+      function executeDrop(data, targetM, snappedX, track, rerouted, extraSetup) {
+        const mo = moDataList.find(x => x.id === data.id);
+        if (!mo) return;
+        if (draggedElement && data.fromMachine) { draggedElement.remove();
+          draggedElement = null; }
+        if (!data.stockReady && !rerouted) { if (!confirm(
+            `⚠️ Stok ${data.mo} belum Ready. Lanjutkan?`)) return; }
+        let dur = getDurationForMO(mo.id, targetM) + extraSetup;
+        const block = createBlock(track, mo, snappedX, dur, 'scheduled', false, false, extraSetup);
+        if (rerouted || extraSetup > 0) {
+          block.style.background = '#0369a1';
+          block.style.borderLeft = '5px solid #eab308';
+          block.querySelector('.block-header span:first-child').innerHTML = `⚡ [REROUTED] ${mo.mo}`;
+        }
+        mo.status = 'Scheduled';
+        mo.ganttMachine = targetM;
+        mo.ganttStartPx = snappedX;
+        mo.ganttDuration = dur;
+        mo.ganttStatus = 'scheduled';
+        mo.fixed = false;
+        renderTable();
+        updateMachineLabels();
+        showToast(`✅ ${mo.mo} di ${targetM} (${dur} mnt).`);
+      }
+
+      function showToast(msg, type = 'success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = `toast ${type} show`;
+        clearTimeout(t._t);
+        t._t = setTimeout(() => t.classList.remove('show'), 2500);
+      }
+
+      // ===== COLUMN RESIZE =====
+      function initColResize() {
+        let resizing = false,
+          th = null,
+          sx = 0,
+          sw0 = 0;
+        document.querySelectorAll('th .resize-handle').forEach(h => {
+          h.addEventListener('mousedown', e => {
+            resizing = true;
+            th = h.parentElement;
+            sx = e.clientX;
+            sw0 = th.offsetWidth;
+            h.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+          });
+        });
+        document.addEventListener('mousemove', e => {
+          if (!resizing || !th) return;
+          th.style.width = `${Math.max(40,sw0+e.clientX-sx)}px`;
+          th.style.minWidth = th.style.width;
+        });
+        document.addEventListener('mouseup', () => {
+          if (resizing) {
+            resizing = false;
+            if (th) { th.querySelector('.resize-handle')?.classList.remove('resizing');
+              th = null; }
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          }
+        });
+      }
+
+      // ===== TOGGLE TROUBLE =====
+      let troubleActive = true;
+
+      function toggleTrouble() {
+        const btn = document.getElementById('btnToggleTrouble');
+        const tBlock = document.querySelector('.drop-track[data-machine="MC1"] .gantt-block.status-trouble');
+        const rBlock = document.querySelector('.drop-track[data-machine="MC1"] .gantt-block.status-running');
+        if (tBlock && troubleActive) {
+          tBlock.className = 'gantt-block status-running locked-block';
+          tBlock.setAttribute('draggable', 'false');
+          tBlock.querySelector('.block-header span:last-child').innerHTML = '🟢 RUNNING 🔒';
+          btn.className = 'btn-sim';
+          btn.style.background = '#991b1b';
+          btn.innerText = '🔴 Trigger Trouble MC1';
+          troubleActive = false;
+          const mo = moDataList.find(x => x.id === tBlock.dataset.id);
+          if (mo) { mo.status = 'Running';
+            mo.ganttStatus = 'running'; }
+        } else if (rBlock && !troubleActive) {
+          rBlock.className = 'gantt-block status-trouble';
+          rBlock.setAttribute('draggable', 'true');
+          rBlock.classList.remove('locked-block');
+          rBlock.querySelector('.block-header span:last-child').innerHTML = '🔴 TROUBLE';
+          btn.className = 'btn-sim active-red';
+          btn.style.background = '#ef4444';
+          btn.innerText = '🟢 Selesaikan Trouble MC1';
+          troubleActive = true;
+          const mo = moDataList.find(x => x.id === rBlock.dataset.id);
+          if (mo) { mo.status = 'Trouble';
+            mo.ganttStatus = 'trouble'; }
+        }
+        updateMachineLabels();
+        renderTable();
+        updateNowLine();
+      }
+
+      // ===== INIT =====
+      document.addEventListener('DOMContentLoaded', () => {
+        renderTimelineHeader();
+        renderGantt();
+        renderTable();
+        initDragDrop();
+        initColResize();
+        document.getElementById('btnConfirmReroute').addEventListener('click', () => {
+          if (!pendingReroute) return;
+          const { data, targetM, snappedX, track, yarnMis } = pendingReroute;
+          const extra = yarnMis ? (parseInt(document.getElementById('setupDurationInput').value) || 45) :
+            0;
+          executeDrop(data, targetM, snappedX, track, true, extra);
+          closeModal();
+        });
+        document.getElementById('btnToggleTrouble').addEventListener('click', toggleTrouble);
+        setInterval(updateNowLine, 20000);
+        setTimeout(() => scrollToToday(), 400);
+      });
+
+      window.scrollToToday = scrollToToday;
+      window.filterTable = filterTable;
+      window.closeModal = closeModal;
+      window.onGranularityChange = onGranularityChange;
+    })();
+  </script>
+</body>
+</html>

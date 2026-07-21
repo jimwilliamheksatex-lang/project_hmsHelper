@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Warping Job Order - MC1</title>
+    <style>
+        :root { --primary-color: #2c3e50; --accent-color: #27ae60; --danger-color: #e74c3c; --bg-color: #f4f7f6; --start-color: #3498db; }
+        * { box-sizing: border-box; }
+        html { font-size: 18px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); padding: 20px; margin: 0; }
+        .container { max-width: 1500px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        .logo { max-height: 50px; max-width: 50px; }
+        .machine-id { background: var(--primary-color); color: white; padding: 10px 20px; border-radius: 5px; font-size: 1.5em; font-weight: bold; }
+
+        .mo-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 10px; background: #eee; padding: 16px; border-radius: 5px; }
+        .mo-header .form-group { display: flex; flex-direction: column; }
+        .mo-header label { font-size: 0.75em; font-weight: bold; color: #555; margin-bottom: 3px; }
+        .mo-header span { font-weight: bold; color: #000; font-size: 1.05em; }
+
+        .estimasi-box {
+            background: #e8f0fe;
+            padding: 14px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+            font-weight: bold;
+            font-size: 1.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .estimasi-box .label { color: #2c3e50; }
+        .estimasi-box .value { color: #27ae60; font-size: 1.1em; }
+
+        button { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; font-size: 1em; }
+        .btn-start { background: var(--start-color); }
+        .btn-done { background: var(--accent-color); }
+        .btn-selesai { background: #9b59b6; }
+
+        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; min-width: 1400px; table-layout: fixed; border-collapse: collapse; margin-top: 20px; font-size: 0.95em; }
+        th, td { border: 1px solid #ddd; padding: 12px 6px; text-align: center; vertical-align: middle; }
+        th { background-color: var(--primary-color); color: white; white-space: normal; font-size: 0.95em; }
+        td { word-break: break-word; }
+
+        tr.completed td:not(.action-cell):not(.status-cell) { background-color: #c8e6c9; }
+        tr.empty-row td { background-color: #f5f5f5; color: #999; }
+        tr.locked td:not(.action-cell):not(.status-cell) { background-color: #fff3e0; }
+        tr.active-row td:not(.action-cell):not(.status-cell) { background-color: #e3f2fd; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status-pending { background-color: #ff9800; color: white; }
+        .status-completed { background-color: #4caf50; color: white; }
+        .status-empty { background-color: #9e9e9e; color: white; }
+        .status-locked { background-color: #ff5722; color: white; }
+
+        .action-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .action-cell input[type="password"] { width: 80px; padding: 6px; font-size: 0.9em; }
+        .action-cell button { padding: 6px 10px; margin: 0; font-size: 0.85em; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; width: auto; }
+        .action-cell .btn-hapus { background: red; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; width: auto; }
+        .action-cell .btn-hapus:hover { background: darkred; }
+
+        .completed-count {
+            background: #4caf50;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.95em;
+        }
+
+        .edit-input, .edit-select {
+            width: 100%;
+            padding: 8px 4px;
+            border: 2px solid #2196F3;
+            border-radius: 5px;
+            font-size: 1em;
+            background: white;
+            text-align: center;
+        }
+        .edit-input:focus, .edit-select:focus { outline: none; border-color: #ff9800; }
+
+        .amplas-checkbox { width: 28px; height: 28px; cursor: pointer; }
+
+        .keterangan-box {
+            margin-top: 24px;
+            padding: 14px 18px;
+            background: #fffbe6;
+            border-left: 4px solid #f1c40f;
+            border-radius: 5px;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        .keterangan-box strong { color: #2c3e50; }
+
+        @media (max-width: 900px) { .mo-header { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 700px) { .mo-header { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 450px) { .mo-header { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <img src="http://157.20.244.218:8880/hms/dist/img/logo.png" alt="Logo" class="logo">
+        <h1>WARPING JOB ORDER</h1>
+        <div class="machine-id">MC1</div>
+    </div>
+
+    <!-- MO HEADER -->
+    <div class="mo-header">
+        <div class="form-group"><label>MO Number</label><span>MO260700124</span></div>
+        <div class="form-group"><label>Knitting MC</label><span>MC48</span></div>
+        <div class="form-group" style="display: none;"><label>Operator</label><span id="opName">Arif</span></div>
+        <div class="form-group" style="display: none;"><label>Shift</label><span id="opShift">Siang</span></div>
+        <div class="form-group"><label>Benang</label><span>POLY SDY SD 75-36/560</span></div>
+        <div class="form-group"><label>Target Beam</label><span id="targetBeam">6</span></div>
+        <div class="form-group"><label>GB</label><span>2</span></div>
+        <div class="form-group"><label>Speed Target</label><span id="mcSpeed">500 RPM</span></div>
+        <div class="form-group"><label>Order per Beam</label><span id="panjangTarget">13.253 m</span></div>
+        <div class="form-group"><label>Lembar</label><span id="lembarValue">560</span></div>
+        <div class="form-group"><label>Denier</label><span id="denierValue">75</span></div>
+        <div class="form-group"><label>Slowert / Tension</label><span id="tensionValue"></span></div>
+    </div>
+
+    <!-- ESTIMASI SISA -->
+    <div class="estimasi-box" id="estimasiBox">
+        <span class="label">⏱ Estimasi Sisa Pekerjaan:</span>
+        <span class="value" id="estimasiValue">— (belum mulai)</span>
+        <span class="completed-count" id="completedCount">0 / 0 Selesai</span>
+    </div>
+
+    <!-- TABEL -->
+    <div class="table-scroll">
+    <table id="beamTable">
+        <colgroup>
+            <col style="width:3%">
+            <col style="width:8%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:7%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:7%">
+            <col style="width:6%">
+            <col style="width:7%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:6%">
+            <col style="width:7%">
+            <col style="width:7%">
+        </colgroup>
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Beam</th>
+                <th>UI</th>
+                <th>Speed</th>
+                <th>Panjang (m)</th>
+                <th>Winding</th>
+                <th>Cacat</th>
+                <th>Grade</th>
+                <th>UA</th>
+                <th>Berat (kg)</th>
+                <th>Amplas</th>
+                <th>Operator</th>
+                <th>Shift</th>
+                <th>Waktu Mulai</th>
+                <th>Waktu Selesai</th>
+                <th>Status</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+    </div>
+
+    <!-- KETERANGAN -->
+    <div class="keterangan-box">
+        <strong>Keterangan Cacat:</strong>
+        A = Lolos&nbsp;&nbsp;|&nbsp;&nbsp;
+        B = Putus / Sambungan&nbsp;&nbsp;|&nbsp;&nbsp;
+        C = Benang Berbulu / Pecah&nbsp;&nbsp;|&nbsp;&nbsp;
+        D = Benang Berbelit&nbsp;&nbsp;|&nbsp;&nbsp;
+        E = Benang Ngait
+    </div>
+</div>
+
+<script>
+    // ---- Variabel global ----
+    let isMOStarted = false;
+    let activeRowIndex = -1;
+    const ADMIN_PASS = "admin123";
+
+    // Default values yang diambil dari row 1 setelah selesai
+    let defaultWinding = null;
+    let defaultUA = null;
+
+    // Pilihan tetap
+    const GRADE_OPTIONS = ["A", "B", "C"];
+
+    //Shift
+    const SHIFT_OPTIONS = ["Pagi", "Siang", "Malam"];
+
+    // Database semua beam yang tersedia
+    const allBeams = {
+        "J199": {ui: "662"},
+        "156": {ui: "662"},
+        "71": {ui: "662"},
+        "32": {ui: "662"},
+        "17A": {ui: "662"},
+        "307": {ui: "662"},
+        "66": {ui: "662"},
+        "283": {ui: "662"}
+    };
+
+    let beamOrder = [];
+    let completedBeams = [];
+    let beamData = {};
+
+    // ---- Parser angka format Indonesia ----
+    // Format ID pakai titik (.) sebagai pemisah ribuan dan koma (,) sebagai desimal.
+    // Contoh: "13.253" berarti 13253 (bukan 13.253 dalam artian desimal Inggris).
+    function parseIndoNumber(str) {
+        if (str === null || str === undefined) return 0;
+        let txt = String(str).trim();
+        txt = txt.replace(/[^0-9.,]/g, '');
+        if (txt === '') return 0;
+        txt = txt.replace(/\./g, '').replace(',', '.');
+        const num = parseFloat(txt);
+        return isNaN(num) ? 0 : num;
+    }
+
+    function getHeaderValue(id) {
+        const el = document.getElementById(id);
+        if (!el) return 0;
+        return parseIndoNumber(el.innerText);
+    }
+
+    // Order per Beam sebagai angka murni (meter), satu-satunya sumber panjang per beam.
+    function getPanjangTargetNumerik() {
+        const span = document.getElementById('panjangTarget');
+        if (!span) return 0;
+        return parseIndoNumber(span.innerText);
+    }
+
+    // Total panjang beam yang sudah selesai, dihitung dari panjang AKTUAL tiap
+    // beam (bisa berbeda dari Order per Beam karena kolom Panjang bisa diedit),
+    // bukan diasumsikan sama rata dengan target.
+    function getTotalPanjangSelesai() {
+        let total = 0;
+        completedBeams.forEach(b => {
+            const beam = allBeams[b];
+            const p = (beam && beam.panjang !== undefined && beam.panjang !== null) ? beam.panjang : getPanjangTargetNumerik();
+            total += p;
+        });
+        return total;
+    }
+
+    // Speed default: diambil dari header Speed Target (span#mcSpeed), fallback 500.
+    function getDefaultSpeed() {
+        const speedSpan = document.getElementById('mcSpeed');
+        let speed = 500;
+        if (speedSpan) {
+            const speedNum = parseIndoNumber(speedSpan.innerText);
+            if (speedNum > 0) speed = speedNum;
+        }
+        return speed;
+    }
+
+    function updateEstimasiSisa() {
+        const targetBeam = getHeaderValue('targetBeam');
+        const panjangTarget = getPanjangTargetNumerik();
+        const totalTarget = targetBeam * panjangTarget;
+
+        const totalSelesai = getTotalPanjangSelesai();
+        const sisa = Math.max(0, totalTarget - totalSelesai);
+
+        const estimasiEl = document.getElementById('estimasiValue');
+        if (!isMOStarted && activeRowIndex === -1 && completedBeams.length === 0) {
+            estimasiEl.textContent = '— (belum mulai)';
+            return;
+        }
+        if (sisa <= 0 && beamOrder.length > 0) {
+            estimasiEl.textContent = '✅ Semua beam selesai!';
+            return;
+        }
+
+        const speed = getDefaultSpeed();
+        const totalMinutes = sisa / speed;
+        if (totalMinutes <= 0 || !isFinite(totalMinutes)) {
+            estimasiEl.textContent = '— (periksa input)';
+            return;
+        }
+
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.round(totalMinutes % 60);
+        let display = '';
+        if (hours > 0) display += hours + ' jam ';
+        display += minutes + ' menit';
+        estimasiEl.textContent = '~ ' + display + ' (sisa ' + Math.round(sisa) + ' m)';
+    }
+
+    function formatTime(date) {
+        const h = String(date.getHours()).padStart(2, '0');
+        const m = String(date.getMinutes()).padStart(2, '0');
+        return h + ':' + m;
+    }
+
+    function hitungBerat(panjangMeter) {
+        const denier = getHeaderValue('denierValue');
+        const lembar = getHeaderValue('lembarValue');
+        if (denier > 0 && lembar > 0 && panjangMeter > 0) {
+            return (denier * lembar * panjangMeter) / 9000000;
+        }
+        return 0;
+    }
+
+    function getAvailableBeams() {
+        return Object.keys(allBeams).filter(b => !beamOrder.includes(b) || completedBeams.includes(b));
+    }
+
+    // ---- Buat elemen <select> untuk kolom Beam (langsung tampil, tanpa perlu klik dulu) ----
+    function buildBeamSelect(rowIndex, beamKey) {
+        const select = document.createElement('select');
+        select.className = 'edit-select';
+
+        const available = getAvailableBeams();
+        let options = available.slice();
+        if (beamKey && !options.includes(beamKey)) options.unshift(beamKey);
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '-- Pilih Beam --';
+        select.appendChild(placeholder);
+
+        options.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b;
+            opt.textContent = b;
+            if (b === beamKey) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        select.addEventListener('change', () => {
+            const newValue = select.value;
+            const oldValue = beamKey;
+            if (newValue === '' || newValue === oldValue) return;
+
+            if (beamOrder.includes(newValue) && !completedBeams.includes(newValue)) {
+                alert('Beam ini sudah digunakan!');
+                select.value = oldValue || '';
+                return;
+            }
+            const newData = allBeams[newValue];
+            if (!newData) {
+                alert('Data beam tidak ditemukan!');
+                select.value = oldValue || '';
+                return;
+            }
+
+            if (rowIndex > 0 && defaultWinding !== null && defaultUA !== null) {
+                if (newData.winding === null || newData.winding === undefined) newData.winding = defaultWinding;
+                if (newData.ua === null || newData.ua === undefined) newData.ua = defaultUA;
+            }
+            // Nilai default saat beam baru dipasang di baris ini
+            if (newData.panjang === undefined || newData.panjang === null) {
+                newData.panjang = getPanjangTargetNumerik();
+            }
+            if (newData.speed === undefined || newData.speed === null) {
+                newData.speed = getDefaultSpeed();
+            }
+            if (!newData.grade) {
+                newData.grade = 'A';
+            }
+
+            if (!oldValue) {
+                if (rowIndex < beamOrder.length) beamOrder[rowIndex] = newValue;
+                else beamOrder.push(newValue);
+                if (!beamData[newValue]) beamData[newValue] = {};
+                if (isMOStarted) beamData[newValue].waktuMulai = formatTime(new Date());
+            } else {
+                const idx = beamOrder.indexOf(oldValue);
+                if (idx !== -1) beamOrder[idx] = newValue;
+                if (beamData[oldValue]) {
+                    beamData[newValue] = beamData[oldValue];
+                    delete beamData[oldValue];
+                }
+                const compIdx = completedBeams.indexOf(oldValue);
+                if (compIdx !== -1) completedBeams[compIdx] = newValue;
+            }
+            renderTable();
+            updateEstimasiSisa();
+        });
+
+        return select;
+    }
+
+    // ---- Buat elemen <input> teks/angka untuk field bebas (langsung tampil) ----
+    function buildTextInput(beamKey, field, currentValue, type, onSaved) {
+        const input = document.createElement('input');
+        input.type = type || 'text';
+        input.className = 'edit-input';
+        input.value = (currentValue === '-' || currentValue === undefined || currentValue === null) ? '' : currentValue;
+
+        input.addEventListener('change', () => {
+            const newValue = input.value.trim();
+            if (newValue === '') return;
+            let saved;
+            if (type === 'number') {
+                saved = parseIndoNumber(newValue);
+            } else {
+                saved = newValue;
+            }
+            allBeams[beamKey][field] = saved;
+            if (typeof onSaved === 'function') onSaved(saved);
+        });
+
+        return input;
+    }
+
+    // ---- Buat elemen <select> untuk Cacat / Grade (langsung tampil) ----
+    function buildChoiceSelect(beamKey, field, currentValue, choices) {
+        const select = document.createElement('select');
+        select.className = 'edit-select';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '-';
+        select.appendChild(placeholder);
+
+        choices.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            if (c === currentValue) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        select.addEventListener('change', () => {
+            allBeams[beamKey][field] = select.value;
+        });
+
+        return select;
+    }
+
+    function toggleAmplas(beamKey, checked) {
+        if (!beamKey || !allBeams[beamKey]) return;
+        allBeams[beamKey].amplas = checked;
+    }
+
+    // ---- Render tabel ----
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        const targetBeam = getHeaderValue('targetBeam');
+        while (beamOrder.length < targetBeam) beamOrder.push(null);
+
+        let firstIncompleteIndex = -1;
+        for (let i = 0; i < beamOrder.length; i++) {
+            const b = beamOrder[i];
+            if (!b || !completedBeams.includes(b)) { firstIncompleteIndex = i; break; }
+        }
+
+        if (activeRowIndex !== -1 && activeRowIndex < beamOrder.length) {
+            const b = beamOrder[activeRowIndex];
+            if (b && completedBeams.includes(b)) { activeRowIndex = -1; isMOStarted = false; }
+        }
+
+        const panjangPerBeam = getPanjangTargetNumerik();
+        const operatorName = document.getElementById('opName').innerText;
+        const operatorShift = document.getElementById('opShift').innerText;
+
+        for (let i = 0; i < beamOrder.length; i++) {
+            const beamKey = beamOrder[i];
+            const data = beamKey ? allBeams[beamKey] : null;
+            const isCompleted = beamKey ? completedBeams.includes(beamKey) : false;
+            const isEditable = (i === activeRowIndex) && !isCompleted && isMOStarted;
+            const isLocked = !isEditable && !isCompleted && isMOStarted;
+            const isStartable = !isMOStarted && !isCompleted && (i === firstIncompleteIndex);
+
+            const row = document.createElement('tr');
+            if (isCompleted) row.classList.add('completed');
+            else if (isEditable) row.classList.add('active-row');
+            else if (isLocked) row.classList.add('locked');
+            else if (!isMOStarted && i === firstIncompleteIndex) row.classList.add('empty-row');
+            else if (!isMOStarted) row.classList.add('locked');
+
+            let panjangMeter = '-', beratStr = '-';
+            let ui = '-', speed = '-', winding = '-', cacat = '', grade = '', ua = '-', amplasChecked = false;
+            let waktuMulai = '-', waktuSelesai = '-';
+
+            if (data) {
+                const panjangAktual = (data.panjang !== undefined && data.panjang !== null) ? data.panjang : panjangPerBeam;
+                panjangMeter = Math.round(panjangAktual);
+                beratStr = hitungBerat(panjangAktual).toFixed(2);
+                ui = data.ui || '-';
+                speed = (data.speed !== undefined && data.speed !== null) ? data.speed : '-';
+                winding = (data.winding !== null && data.winding !== undefined) ? data.winding : '-';
+                cacat = data.cacat || '';
+                grade = data.grade || '';
+                ua = (data.ua !== null && data.ua !== undefined) ? data.ua : '-';
+                amplasChecked = !!data.amplas;
+                waktuMulai = beamData[beamKey]?.waktuMulai || '-';
+                waktuSelesai = isCompleted ? (beamData[beamKey]?.waktuSelesai || formatTime(new Date())) : '-';
+            }
+
+            // No
+            appendTextCell(row, i + 1);
+
+            // Beam
+            const beamTd = document.createElement('td');
+            if (isEditable) beamTd.appendChild(buildBeamSelect(i, beamKey));
+            else beamTd.textContent = beamKey || '-';
+            row.appendChild(beamTd);
+
+            // UI (selalu read-only — melekat pada data fisik beam)
+            appendTextCell(row, ui);
+            // Speed (default dari Speed Target header, tetap bisa diedit)
+            appendFieldCell(row, isEditable, beamKey, 'speed', speed, 'number');
+            // Panjang (default dari Order per Beam, bisa diedit; mengubahnya
+            // langsung memperbarui Berat di baris yang sama)
+            {
+                const panjangTd = document.createElement('td');
+                if (isEditable && beamKey) {
+                    const panjangInput = buildTextInput(beamKey, 'panjang', panjangMeter, 'number', (savedValue) => {
+                        const beratCell = panjangTd.closest('tr').cells[9];
+                        if (beratCell) beratCell.textContent = hitungBerat(savedValue).toFixed(2);
+                        updateEstimasiSisa();
+                    });
+                    panjangTd.appendChild(panjangInput);
+                } else {
+                    panjangTd.textContent = panjangMeter;
+                }
+                row.appendChild(panjangTd);
+            }
+            // Winding
+            appendFieldCell(row, isEditable, beamKey, 'winding', winding, 'number');
+            // Cacat (teks bebas — lihat keterangan di bawah tabel)
+            appendFieldCell(row, isEditable, beamKey, 'cacat', cacat, 'text');
+            // Grade (dropdown A-C, default "A")
+            appendChoiceCell(row, isEditable, beamKey, 'grade', grade, GRADE_OPTIONS);
+            // UA
+            appendFieldCell(row, isEditable, beamKey, 'ua', ua, 'text');
+            // Berat (read-only)
+            appendTextCell(row, beratStr);
+
+            // Amplas (checkbox)
+            const amplasTd = document.createElement('td');
+            const amplasCheckbox = document.createElement('input');
+            amplasCheckbox.type = 'checkbox';
+            amplasCheckbox.className = 'amplas-checkbox';
+            amplasCheckbox.checked = amplasChecked;
+            amplasCheckbox.disabled = !isEditable || isCompleted || !beamKey;
+            amplasCheckbox.addEventListener('change', () => toggleAmplas(beamKey, amplasCheckbox.checked));
+            amplasTd.appendChild(amplasCheckbox);
+            row.appendChild(amplasTd);
+
+            // Operator, Shift, Waktu Mulai, Waktu Selesai
+            appendFieldCell(row, isEditable, operatorName, 'opName', operatorName, 'text');
+            appendChoiceCell(row, isEditable, operatorShift, 'opShift', operatorShift, SHIFT_OPTIONS);
+            appendTextCell(row, waktuMulai);
+            appendTextCell(row, waktuSelesai);
+
+            // Status
+            const statusTd = document.createElement('td');
+            statusTd.className = 'status-cell';
+            let statusText = 'Kosong', statusClass = 'status-empty';
+            if (isCompleted) { statusText = 'Selesai'; statusClass = 'status-completed'; }
+            else if (isEditable) { statusText = 'Aktif'; statusClass = 'status-pending'; }
+            else if (isLocked) { statusText = 'Terkunci'; statusClass = 'status-locked'; }
+            else if (!isMOStarted && i === firstIncompleteIndex) { statusText = 'Siap'; statusClass = 'status-empty'; }
+            else if (!isMOStarted) { statusText = 'Belum Mulai'; statusClass = 'status-empty'; }
+            statusTd.innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+            row.appendChild(statusTd);
+
+            // Aksi
+            const actionTd = document.createElement('td');
+            actionTd.className = 'action-cell';
+            if (isCompleted) {
+                const hapusBtn = document.createElement('button');
+                hapusBtn.className = 'btn-hapus';
+                hapusBtn.textContent = 'Hapus';
+                hapusBtn.addEventListener('click', () => requestDelete(hapusBtn, beamKey));
+                actionTd.appendChild(hapusBtn);
+            } else if (isEditable) {
+                const doneBtn = document.createElement('button');
+                doneBtn.textContent = 'Selesaikan';
+                doneBtn.style.background = '#4caf50';
+                doneBtn.addEventListener('click', () => completeBeam(i));
+                actionTd.appendChild(doneBtn);
+            } else if (isStartable) {
+                const startBtn = document.createElement('button');
+                startBtn.textContent = '▶ Start';
+                startBtn.style.background = '#2196F3';
+                startBtn.addEventListener('click', () => startRow(i));
+                actionTd.appendChild(startBtn);
+            } else {
+                actionTd.innerHTML = `<span style="color:#999; font-size:0.85em;">-</span>`;
+            }
+            row.appendChild(actionTd);
+
+            tbody.appendChild(row);
+        }
+
+        document.getElementById('completedCount').textContent = `${completedBeams.length} / ${targetBeam} Selesai`;
+
+        if (isMOStarted && completedBeams.length >= targetBeam) {
+            let finishBtn = document.getElementById('finishBtn');
+            if (!finishBtn) {
+                const estimasiBox = document.querySelector('.estimasi-box');
+                finishBtn = document.createElement('button');
+                finishBtn.id = 'finishBtn';
+                finishBtn.className = 'btn-selesai';
+                finishBtn.textContent = '✅ Selesai - Lanjut';
+                finishBtn.onclick = finishMO;
+                finishBtn.style.marginLeft = 'auto';
+                estimasiBox.appendChild(finishBtn);
+            }
+        } else {
+            const finishBtn = document.getElementById('finishBtn');
+            if (finishBtn) finishBtn.remove();
+        }
+    }
+
+    // ---- Helper untuk menambahkan sel ----
+    function appendTextCell(row, value) {
+        const td = document.createElement('td');
+        td.textContent = value;
+        row.appendChild(td);
+    }
+
+    function appendFieldCell(row, isEditable, beamKey, field, value, type, onSaved) {
+        const td = document.createElement('td');
+        if (isEditable && beamKey) {
+            td.appendChild(buildTextInput(beamKey, field, value, type, onSaved));
+        } else {
+            td.textContent = value;
+        }
+        row.appendChild(td);
+    }
+
+    function appendChoiceCell(row, isEditable, beamKey, field, value, choices) {
+        const td = document.createElement('td');
+        if (isEditable && beamKey) {
+            td.appendChild(buildChoiceSelect(beamKey, field, value, choices));
+        } else {
+            td.textContent = value || '-';
+        }
+        row.appendChild(td);
+    }
+
+    // ---- Start row ----
+    function startRow(rowIndex) {
+        if (isMOStarted) { alert('Pekerjaan sudah dimulai! Selesaikan row aktif terlebih dahulu.'); return; }
+        if (rowIndex >= beamOrder.length) { alert('Baris tidak valid.'); return; }
+        const b = beamOrder[rowIndex];
+        if (b && completedBeams.includes(b)) { alert('Beam ini sudah selesai!'); return; }
+        let firstIncomplete = -1;
+        for (let i = 0; i < beamOrder.length; i++) {
+            const bi = beamOrder[i];
+            if (!bi || !completedBeams.includes(bi)) { firstIncomplete = i; break; }
+        }
+        if (rowIndex !== firstIncomplete) { alert('Hanya baris pertama yang belum selesai yang dapat di-start!'); return; }
+        isMOStarted = true;
+        activeRowIndex = rowIndex;
+        renderTable();
+        updateEstimasiSisa();
+    }
+
+    // ---- Complete beam ----
+    function completeBeam(rowIndex) {
+        const beamKey = beamOrder[rowIndex];
+        if (!beamKey) { alert('Pilih beam terlebih dahulu!'); return; }
+        if (completedBeams.includes(beamKey)) { alert('Beam ini sudah selesai!'); return; }
+        const data = allBeams[beamKey];
+        if (data.winding === null || data.winding === undefined || data.winding === '-') { alert('Winding harus diisi!'); return; }
+        if (data.ua === null || data.ua === undefined || data.ua === '-') { alert('UA harus diisi!'); return; }
+        if (!data.grade) { alert('Grade harus dipilih!'); return; }
+
+        const panjangAktual = (data.panjang !== undefined && data.panjang !== null) ? data.panjang : getPanjangTargetNumerik();
+        const confirmMsg =
+            `Selesaikan Beam ${beamKey}?\n\n` +
+            `Data Beam:\n` +
+            `UI: ${data.ui}\n` +
+            `Speed: ${data.speed || '-'} RPM\n` +
+            `Panjang: ${Math.round(panjangAktual)} m\n` +
+            `Winding: ${data.winding}\n` +
+            `Grade: ${data.grade}\n` +
+            `UA: ${data.ua}\n` +
+            `Amplas: ${data.amplas ? 'Sudah' : 'Belum'}\n` +
+            `Cacat: ${data.cacat || '-'}\n\n` +
+            `Apakah beam ini sudah selesai dikerjakan?`;
+        if (!confirm(confirmMsg)) return;
+
+        defaultWinding = data.winding;
+        defaultUA = data.ua;
+
+        completedBeams.push(beamKey);
+        if (!beamData[beamKey]) beamData[beamKey] = {};
+        beamData[beamKey].waktuSelesai = formatTime(new Date());
+        if (!beamData[beamKey].waktuMulai) beamData[beamKey].waktuMulai = formatTime(new Date());
+
+        activeRowIndex = -1;
+        isMOStarted = false;
+
+        updateEstimasiSisa();
+        renderTable();
+    }
+
+    // ---- Hapus ----
+    function requestDelete(btn, beamKey) {
+        const td = btn.parentNode;
+        td.innerHTML = '';
+
+        const passInput = document.createElement('input');
+        passInput.type = 'password';
+        passInput.placeholder = 'Pass';
+
+        const okBtn = document.createElement('button');
+        okBtn.textContent = 'OK';
+        okBtn.style.cssText = 'background:#27ae60;';
+        okBtn.addEventListener('click', () => confirmDelete(okBtn, beamKey, passInput.value));
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Batal';
+        cancelBtn.style.cssText = 'background:#95a5a6;';
+        cancelBtn.addEventListener('click', () => cancelDelete(cancelBtn, beamKey));
+
+        td.appendChild(passInput);
+        td.appendChild(okBtn);
+        td.appendChild(cancelBtn);
+        passInput.focus();
+    }
+
+    function renderHapusButton(td, beamKey) {
+        td.innerHTML = '';
+        const hapusBtn = document.createElement('button');
+        hapusBtn.className = 'btn-hapus';
+        hapusBtn.textContent = 'Hapus';
+        hapusBtn.addEventListener('click', () => requestDelete(hapusBtn, beamKey));
+        td.appendChild(hapusBtn);
+    }
+
+    function confirmDelete(btn, beamKey, pass) {
+        const td = btn.parentNode;
+        if (pass === ADMIN_PASS) {
+            const idx = completedBeams.indexOf(beamKey);
+            if (idx !== -1) {
+                completedBeams.splice(idx, 1);
+                if (beamData[beamKey]) delete beamData[beamKey].waktuSelesai;
+                const rowIdx = beamOrder.indexOf(beamKey);
+                if (rowIdx !== -1) beamOrder[rowIdx] = null;
+                activeRowIndex = -1;
+                isMOStarted = false;
+            }
+            updateEstimasiSisa();
+            renderTable();
+        } else {
+            alert('Password salah!');
+            renderHapusButton(td, beamKey);
+        }
+    }
+
+    function cancelDelete(btn, beamKey) {
+        renderHapusButton(btn.parentNode, beamKey);
+    }
+
+    // ---- Finish MO ----
+    function finishMO() {
+        if (confirm('MO akan diselesaikan. Yakin?')) location.reload();
+    }
+
+    // ---- Inisialisasi ----
+    window.addEventListener('DOMContentLoaded', function() {
+        const targetBeam = getHeaderValue('targetBeam');
+        beamOrder = new Array(targetBeam).fill(null);
+        completedBeams = [];
+        beamData = {};
+        isMOStarted = false;
+        activeRowIndex = -1;
+        defaultWinding = null;
+        defaultUA = null;
+        renderTable();
+        updateEstimasiSisa();
+    });
+</script>
+</body>
+</html>

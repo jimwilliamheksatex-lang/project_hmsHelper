@@ -106,6 +106,18 @@
         .action-cell button { padding: 3px 6px; margin: 0; font-size: 0.75em; background: #27ae60; color: white; border: none; border-radius: 3px; cursor: pointer; width: auto; }
         .action-cell .btn-hapus { background: red; color: white; padding: 4px 8px; border: none; border-radius: 3px; cursor: pointer; width: auto; }
         .action-cell .btn-hapus:hover { background: darkred; }
+        
+        /*Keterangan Cacat*/
+        .keterangan-box {
+            margin-top: 24px;
+            padding: 14px 18px;
+            background: #fffbe6;
+            border-left: 4px solid #f1c40f;
+            border-radius: 5px;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        .keterangan-box strong { color: #2c3e50; }
 
         /* Responsive tablet */
         @media (max-width: 900px) {
@@ -197,11 +209,21 @@
             <label>Cacat</label>
             <textarea id="cacat" placeholder="Deskripsi" rows="3"></textarea>
         </div>
+        
+    </div>
+    
+    <div class="keterangan-box">
+        <strong>Keterangan Cacat:</strong>
+        A = Lolos&nbsp;&nbsp;|&nbsp;&nbsp;
+        B = Putus / Sambungan&nbsp;&nbsp;|&nbsp;&nbsp;
+        C = Benang Berbulu / Pecah&nbsp;&nbsp;|&nbsp;&nbsp;
+        D = Benang Berbelit&nbsp;&nbsp;|&nbsp;&nbsp;
+        E = Benang Ngait
     </div>
     
     <button id="addBtn" class="btn-done" onclick="addBeam()" style="display:none;">Done - Add Beam</button>
     <button id="finishBtn" class="btn-selesai" onclick="finishMO()" style="display:none;">Selesai - Lanjut ke MO Berikutnya</button>
-
+    
     <!-- TABEL -->
     <table id="beamTable">
         <thead>
@@ -414,6 +436,9 @@
         const amplas = document.getElementById('amplas').checked ? '✔️' : '❌';
 
         if (!beamVal) { alert("Mohon isi nomor Beam!"); return; }
+        if (!ua) { alert("UA belum terisi!"); return; }
+        if (!winding) { alert("Winding belum terisi!"); return; }
+        if (amplas != "✔️") { alert("Cek kembali apakah sudah di amplas & bersih?!"); return; }
         if (usedBeams.includes(beamVal)) {
             alert("Beam ini sudah digunakan!");
             return;
@@ -439,8 +464,8 @@
             `Grade     : ${grade}\n` +
             `UA        : ${ua || '-'}\n` +
             `Amplas    : ${amplas}\n` +
-            `Cacat     : ${cacat || '-'}\n` +
             `Berat     : ${beratStr} kg\n\n` +
+            `Cacat     : ${cacat || '-'}\n` +
             `Apakah data sudah benar?`;
 
         if (!confirm(msg)) return;
