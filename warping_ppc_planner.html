@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PPC Warping MES Workstation</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Error detection: catch resource load failures for style.css and app.js -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.filename && (e.filename.includes('style.css') || e.filename.includes('app.js'))) {
+        console.error('[App] Failed to load:', e.filename, e.message || '(no message)');
+      }
+    }, true /* capture phase, required for resource errors */);
+  </script>
+</head>
+<body class="planner-page" data-page="planner">
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <div class="logo-area">
+      <img src="http://157.20.244.218:8880/hms/dist/img/logo.png" alt="Logo Perusahaan" />
+      <span>PPC Warping MES Workstation</span>
+    </div>
+    <div class="iot-badge"><div class="dot"></div><span>IoT: ONLINE (12 Mesin Terhubung)</span></div>
+  </header>
+
+  <!-- ===== WORKSPACE ===== -->
+  <div class="workspace">
+
+    <!-- GANTT -->
+    <div class="gantt-section">
+      <div class="gantt-scroll-container" id="ganttScroll">
+        <div class="gantt-header-row">
+          <div class="sticky-corner">MESIN</div>
+          <div class="timeline-header-track" id="timeHeaderTrack"></div>
+        </div>
+        <div id="ganttBody"></div>
+        <div class="snap-ghost" id="snapGhost"></div>
+      </div>
+    </div>
+
+    <!-- CONTROL BAR -->
+    <div class="control-bar">
+      <div class="arduino-controls">
+        <span class="planner-sim-label">🔌 ARDUINO SIM:</span>
+        <button class="btn-sim active-red" id="btnToggleTrouble">🟢 Selesaikan Trouble: MC01</button>
+        <button class="btn-sim btn-nav" onclick="scrollToToday()">🎯 Lompat ke Hari Ini (Jam 08:00)</button>
+      </div>
+      <div class="planner-tips-text">
+        💡 Tips: Order 'Running' ter-lock (tidak bisa di-drag). Order 'Trouble' bisa di-drag untuk reroute.
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-section">
+      <div class="table-header">
+        <div class="table-title"><span>📋 Daftar MO Backlog (Belum Dijadwalkan)</span></div>
+        <div class="filter-controls">
+          <input type="text" id="searchInput" class="input-filter" placeholder="🔍 Cari Nomor MO / SC / Benang..." oninput="filterTable()">
+          <select id="statusFilter" class="select-filter" onchange="filterTable()">
+            <option value="NOT_SCHEDULED" selected>📌 Belum Dijadwalkan</option>
+            <option value="ALL">📋 Semua Status</option>
+            <option value="Ready">🟢 Ready to Warp</option>
+            <option value="Scheduled">🔵 Scheduled</option>
+            <option value="Waiting">🟡 Waiting Material</option>
+            <option value="Shortage">🔴 Material Shortage</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>No</th><th>Nomor MO</th><th>MC</th><th>Jenis Benang</th>
+              <th>SC</th><th>GB</th><th>Jml Beam</th><th>Lembar</th><th>Panjang/Beam</th><th>Target Panjang</th>
+              <th>Stok</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="moTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== MODAL ===== -->
+  <div class="modal-overlay" id="warningModal">
+    <div class="modal-box">
+      <div class="modal-title"><span>⚠️ PERINGATAN</span></div>
+      <div class="modal-text" id="modalTextContent"></div>
+      <div class="modal-actions">
+        <button class="btn-modal btn-cancel" onclick="closeModal()">❌ Batal</button>
+        <button class="btn-modal btn-confirm-warn" id="btnConfirmReroute">⚡ Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Error detection: warn if app.js fails to load
+    if (typeof App === 'undefined') {
+      console.error('[App] app.js failed to load — check that the file exists in the same directory.');
+    }
+  </script>
+</body>
+</html>
