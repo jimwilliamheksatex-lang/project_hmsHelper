@@ -25,20 +25,37 @@
   ],
 
   "users": [
-    { "id": "USR001", "name": "Arif",    "role": "operator", "machine_id": "MC1",     "shift_id": "SHIFT_SIANG" },
-    { "id": "USR002", "name": "Budi",    "role": "operator", "machine_id": "MC7",     "shift_id": "SHIFT_PAGI"  },
+    { "id": "USR001", "name": "Arif",    "role": "operator", "machine_id": "MC01",    "shift_id": "SHIFT_SIANG" },
+    { "id": "USR002", "name": "Budi",    "role": "operator", "machine_id": "MC07",    "shift_id": "SHIFT_PAGI"  },
     { "id": "USR003", "name": "Candra",  "role": "operator", "machine_id": "MC13",    "shift_id": "SHIFT_MALAM" },
     { "id": "USR004", "name": "Dewi",    "role": "operator", "machine_id": "MC-SPLIT","shift_id": "SHIFT_PAGI"  },
-    { "id": "USR005", "name": "Eko",     "role": "operator", "machine_id": "MC1",     "shift_id": "SHIFT_MALAM" },
-    { "id": "USR006", "name": "Fajar",   "role": "operator", "machine_id": "MC7",     "shift_id": "SHIFT_SIANG" },
+    { "id": "USR005", "name": "Eko",     "role": "operator", "machine_id": "MC01",    "shift_id": "SHIFT_MALAM" },
+    { "id": "USR006", "name": "Fajar",   "role": "operator", "machine_id": "MC07",    "shift_id": "SHIFT_SIANG" },
     { "id": "USR007", "name": "Guntur",  "role": "planner",  "machine_id": null,      "shift_id": "SHIFT_PAGI"  },
     { "id": "USR008", "name": "Hendra",  "role": "supervisor","machine_id": null,     "shift_id": "SHIFT_PAGI"  }
   ],
 
+  "warping_machines_comment": "Warping machine registry — machine codes only, no per-machine yarn restriction: every machine can warp every yarn.",
   "machines": [
     {
-      "id": "MC1",
-      "name": "MC1",
+      "id": "MC-SPLIT",
+      "name": "MC-SPLIT",
+      "type": "Karl Mayer CRCO",
+      "max_speed_rpm": 400,
+      "iot_status": "benang_putus",
+      "active_yarn": {
+        "jenis": "POLY FDY BR",
+        "count": "100-36",
+        "lot": "LOT-2024-D",
+        "lembar": 320,
+        "kg_per_cheese": 1.0,
+        "sisa_panjang_m": 60600
+      },
+      "active_mo_id": "MO260700121"
+    },
+    {
+      "id": "MC01",
+      "name": "MC01",
       "type": "Karl Mayer TM4-EL",
       "max_speed_rpm": 600,
       "iot_status": "running",
@@ -46,13 +63,60 @@
         "jenis": "POLY SDY SD",
         "count": "75-36",
         "lot": "LOT-2024-A",
-        "lembar": 560
+        "lembar": 560,
+        "kg_per_cheese": 2.0,
+        "sisa_panjang_m": 213494
       },
       "active_mo_id": "MO260700124"
     },
     {
-      "id": "MC7",
-      "name": "MC7",
+      "id": "MC02",
+      "name": "MC02",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC03",
+      "name": "MC03",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC04",
+      "name": "MC04",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC05",
+      "name": "MC05",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC06",
+      "name": "MC06",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC07",
+      "name": "MC07",
       "type": "Karl Mayer TM4-EL",
       "max_speed_rpm": 600,
       "iot_status": "tidak_ada_order",
@@ -60,8 +124,37 @@
         "jenis": "POLY DTY SD",
         "count": "150-48",
         "lot": "LOT-2024-B",
-        "lembar": 480
+        "lembar": 480,
+        "kg_per_cheese": 1.5,
+        "sisa_panjang_m": 90000
       },
+      "active_mo_id": null
+    },
+    {
+      "id": "MC08",
+      "name": "MC08",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC10",
+      "name": "MC10",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
+      "active_mo_id": null
+    },
+    {
+      "id": "MC12",
+      "name": "MC12",
+      "type": "Karl Mayer TM4-EL",
+      "max_speed_rpm": 600,
+      "iot_status": "tidak_ada_order",
+      "active_yarn": null,
       "active_mo_id": null
     },
     {
@@ -74,23 +167,11 @@
         "jenis": "NYLON FDY SN",
         "count": "70-24",
         "lot": "LOT-2024-C",
-        "lembar": 400
+        "lembar": 400,
+        "kg_per_cheese": 1.2,
+        "sisa_panjang_m": 108286
       },
       "active_mo_id": "MO260700118"
-    },
-    {
-      "id": "MC-SPLIT",
-      "name": "MC-SPLIT",
-      "type": "Karl Mayer CRCO",
-      "max_speed_rpm": 400,
-      "iot_status": "benang_putus",
-      "active_yarn": {
-        "jenis": "POLY FDY BR",
-        "count": "100-36",
-        "lot": "LOT-2024-D",
-        "lembar": 320
-      },
-      "active_mo_id": "MO260700121"
     }
   ],
 
@@ -140,7 +221,7 @@
     {
       "mo_id": "MO260700124",
       "knitting_mc": "MC48",
-      "machine_id": "MC1",
+      "machine_id": "MC01",
       "yarn_type_id": "YRN001",
       "yarn_label": "POLY SDY SD 75-36/560",
       "lot": "LOT-2024-A",
@@ -310,10 +391,10 @@
   "hph_records": {
     "_comment": "HPH = Hasil Produksi Harian. Satu record per MO per shift (07:00 - 07:00 hari berikutnya). Berat dihitung: (denier × lembar × panjang_akhir) / 9.000.000",
 
-    "HPH-2026-0717-MC1-01": {
-      "hph_id": "HPH-2026-0717-MC1-01",
+    "HPH-2026-0717-MC01-01": {
+      "hph_id": "HPH-2026-0717-MC01-01",
       "mo_id": "MO260700120",
-      "machine_id": "MC1",
+      "machine_id": "MC01",
       "shift_date": "2026-07-17",
       "shift_id": "SHIFT_SIANG",
       "operator_id": "USR001",
@@ -496,11 +577,11 @@
       "waktu_selesai_mo": "2026-07-17T13:30:00"
     },
 
-    "HPH-2026-0718-MC1-01": {
+    "HPH-2026-0718-MC01-01": {
       "_comment": "MO aktif hari ini — baru sebagian selesai (2 dari 6 beam)",
-      "hph_id": "HPH-2026-0718-MC1-01",
+      "hph_id": "HPH-2026-0718-MC01-01",
       "mo_id": "MO260700124",
-      "machine_id": "MC1",
+      "machine_id": "MC01",
       "shift_date": "2026-07-18",
       "shift_id": "SHIFT_SIANG",
       "operator_id": "USR001",
@@ -559,7 +640,7 @@
       {
         "block_id": "BLK001",
         "mo_id": "MO260700124",
-        "machine_id": "MC1",
+        "machine_id": "MC01",
         "gantt_status": "fixed",
         "planned_start": "2026-07-18T07:00:00",
         "planned_end":   "2026-07-18T14:30:00",
