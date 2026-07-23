@@ -323,8 +323,8 @@ body.operator-page {
   font-size: 1.1rem;
 }
 .planner-logo-area img {
-  height: 50px;
-  width: 50px;
+  height: 45px;
+  width: 45px;
   object-fit: contain;
 }
 .planner-iot-badge {
@@ -1193,7 +1193,7 @@ body.operator-page { font-size: 18px; }
 /* ============================================================
    6. SUPERVISOR-* COMPONENTS
    Read-only field-supervisor screens — dark theme, reuses the same
-   .badge-*/.ico-dot-*/.running-well/.machine-trouble tokens as the
+   .badge-.ico-dot-.running-well/.machine-trouble tokens as the
    planner so status colors always agree with it.
    ============================================================ */
 .supervisor-page {
@@ -1203,11 +1203,11 @@ body.operator-page { font-size: 18px; }
 }
 
 .supervisor-toolbar {
-  padding: 10px 20px;
+  padding: 20px 20px;
   display: flex;
   gap: 14px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-around;
   background: var(--panel-bg);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
@@ -1304,7 +1304,7 @@ body.operator-page { font-size: 18px; }
   color: var(--text-muted);
 }
 .planner-tips-text {
-  font-size: 0.75rem;
+  font-size: 1rem;
   color: #86efac;
   font-weight: bold;
 }
