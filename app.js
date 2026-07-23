@@ -1611,7 +1611,7 @@
     }
 
     function _machineYarnLineHTML(machine) {
-      if (!machine.active_yarn) return 'Tidak ada cheese terpasang';
+      if (!machine.active_yarn) return 'Tidak ada benang terpasang';
       const { jenis, lot, sisa_panjang_m } = machine.active_yarn;
       let line = `🧵 ${lot ? `${jenis} | ${lot}` : jenis}`;
       if (typeof sisa_panjang_m === 'number') line += ` (sisa ~${Math.round(sisa_panjang_m).toLocaleString('id-ID')}m)`;
