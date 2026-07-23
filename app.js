@@ -44,6 +44,37 @@
   }
 
   // ============================================================
+  // IoT status vocabulary — shared by Renderer and SupervisorView so a
+  // machine's dot color/badge can never disagree between the two screens.
+  // The machine HMI has 3 operator buttons (Ganti Benang / Putus / Tidak
+  // Ada Order); "running" is auto-detected from the machine actually
+  // being on, and "no_response" is auto-detected when it's off and no
+  // button has been pressed to explain why (a real, unacknowledged stop).
+  // ============================================================
+  function isTroubleStatus(iotStatus) {
+    return iotStatus === 'putus' || iotStatus === 'no_response';
+  }
+  function isSetupStatus(iotStatus) {
+    return iotStatus === 'ganti_benang';
+  }
+  function iotDotClass(iotStatus) {
+    if (iotStatus === 'running') return 'ico-dot-green';
+    if (isTroubleStatus(iotStatus)) return 'ico-dot-red';
+    if (isSetupStatus(iotStatus)) return 'ico-dot-yellow';
+    return 'ico-dot-grey';
+  }
+  function iotStatusLabel(iotStatus) {
+    const map = {
+      running:         '🟢 Berjalan',
+      ganti_benang:    '🟡 Ganti Benang',
+      putus:           '🔴 Benang Putus',
+      tidak_ada_order: '⚪ Tidak Ada Order',
+      no_response:     '🔴 No Response',
+    };
+    return map[iotStatus] || iotStatus || '-';
+  }
+
+  // ============================================================
   // MODULE: DataStore
   // ============================================================
   const DataStore = (() => {
@@ -64,8 +95,14 @@
     };
 
     // ---- Task 2.1: load(url) ----
+    // Default points at server.py's JSON API so every page (planner,
+    // supervisor views, operator input) shares one live dataset instead of
+    // each loading its own frozen copy of dummy_data.json. Calling load()
+    // again later (see the polling in the DOMContentLoaded handlers below)
+    // re-fetches and replaces _data wholesale, which is how other pages'
+    // edits show up here.
     async function load(url) {
-      url = url || './dummy_data.json';
+      url = url || '/api/data';
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -178,16 +215,33 @@
       );
     }
 
+    // Fire-and-forget PATCH to server.py's SQLite-backed API so the change
+    // outlives this page and shows up on other pages' next poll. Local
+    // _data is already updated synchronously above for instant UI
+    // feedback; the network call just persists it. Errors are logged, not
+    // thrown — a dropped sync shouldn't break the caller's UI update.
+    function _syncToServer(path, body) {
+      fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).catch(function (err) {
+        console.error('[DataStore] Failed to sync ' + path + ':', err);
+      });
+    }
+
     function updateMOStatus(moId, changes) {
       if (!_data || !_data.manufacturing_orders) return;
       const mo = _data.manufacturing_orders.find(function(x) { return x.mo_id === moId; });
       if (mo) Object.assign(mo, changes);
+      _syncToServer('/api/mo/' + encodeURIComponent(moId), changes);
     }
 
     function updateMachineIoT(machineId, status) {
       if (!_data || !_data.machines) return;
       const machine = _data.machines.find(function(x) { return x.id === machineId; });
       if (machine) machine.iot_status = status;
+      _syncToServer('/api/machine/' + encodeURIComponent(machineId) + '/iot', { status: status });
     }
 
     // Merges into (or creates) a machine's active_yarn — used when a new
@@ -199,6 +253,7 @@
       const machine = _data.machines.find(function(x) { return x.id === machineId; });
       if (!machine) return;
       machine.active_yarn = Object.assign({}, machine.active_yarn, activeYarnPatch);
+      _syncToServer('/api/machine/' + encodeURIComponent(machineId) + '/active_yarn', activeYarnPatch);
     }
 
     // ---- Backward-compat shims for existing code that uses old API ----
@@ -366,6 +421,12 @@
   // manufacturing_orders are the single source of truth for the Gantt.
   // ============================================================
   const Renderer = (() => {
+    // True while the user is mid-drag on the hour header (initHeaderZoomDrag).
+    // Exposed via isZoomDragging() so the planner's polling refresh (bootstrap
+    // section below) can skip a re-render that would yank the view out from
+    // under an in-progress zoom gesture.
+    let _zoomDragging = false;
+
     function init(domRefs) {
       // Kept for API compatibility with the bootstrap entry point below —
       // all render functions look up their elements by id on demand, so
@@ -429,9 +490,7 @@
 
     // ---- Machine label (sidebar) ----
     function _machineLabelHTML(machine) {
-      const dotClass = machine.iot_status === 'running' ? 'ico-dot-green'
-        : (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus') ? 'ico-dot-red'
-        : 'ico-dot-grey';
+      const dotClass = iotDotClass(machine.iot_status);
 
       // Yarn/remaining-length shows whenever a cheese is mounted, even if the
       // machine has no active MO right now — a planner needs to see "still
@@ -451,6 +510,7 @@
 
       return `
         <div class="machine-name"><span class="ico ico-dot ${dotClass}" style="margin-right:6px;"></span>${machine.name}</div>
+        <div class="machine-status-line">${iotStatusLabel(machine.iot_status)}</div>
         <div class="machine-yarn">${yarnLine}</div>
         ${moLine ? `<div class="machine-mo">${moLine}</div>` : ''}
       `;
@@ -461,9 +521,10 @@
         const label = document.querySelector(`.planner-machine-label[data-machine-id="${machine.id}"]`);
         if (!label) return;
         label.innerHTML = _machineLabelHTML(machine);
-        label.classList.remove('running-well', 'machine-trouble');
+        label.classList.remove('running-well', 'machine-trouble', 'machine-setup');
         if (machine.iot_status === 'running') label.classList.add('running-well');
-        else if (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus') label.classList.add('machine-trouble');
+        else if (isTroubleStatus(machine.iot_status)) label.classList.add('machine-trouble');
+        else if (isSetupStatus(machine.iot_status)) label.classList.add('machine-setup');
       });
     }
 
@@ -473,8 +534,11 @@
     // whether it can be dragged.
     function _deriveBlockStatus(mo, machine) {
       const isActiveOnMachine = !!(machine && machine.active_mo_id === mo.mo_id);
-      if (isActiveOnMachine && machine && (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus')) {
+      if (isActiveOnMachine && machine && isTroubleStatus(machine.iot_status)) {
         return { statusClass: 'trouble', locked: false };
+      }
+      if (isActiveOnMachine && machine && isSetupStatus(machine.iot_status)) {
+        return { statusClass: 'setup', locked: true };
       }
       if (mo.gantt_status === 'fixed') {
         if (isActiveOnMachine && machine && machine.iot_status === 'running') {
@@ -522,7 +586,8 @@
         labelDiv.dataset.machineId = machine.id;
         labelDiv.innerHTML = _machineLabelHTML(machine);
         if (machine.iot_status === 'running') labelDiv.classList.add('running-well');
-        else if (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus') labelDiv.classList.add('machine-trouble');
+        else if (isTroubleStatus(machine.iot_status)) labelDiv.classList.add('machine-trouble');
+        else if (isSetupStatus(machine.iot_status)) labelDiv.classList.add('machine-setup');
         row.appendChild(labelDiv);
 
         const trackArea = document.createElement('div');
@@ -556,8 +621,13 @@
       });
 
       // Place a block for every MO that already occupies a machine slot.
+      // interactive=false is only ever used by the read-only supervisor
+      // Gantt (supervisor_view v2.html) — it additionally hides anything
+      // not yet "Ready" (gantt_status 'fixed') so the field supervisor only
+      // ever sees a plan the planner has actually locked in, never a draft.
       DataStore.getMOs().forEach(mo => {
         if (mo.gantt_status === 'unscheduled' || !mo.machine_id || !mo.planned_start || !mo.planned_end) return;
+        if (!interactive && mo.gantt_status !== 'fixed') return;
         const track = document.querySelector(`.planner-drop-track[data-machine="${mo.machine_id}"]`);
         if (!track) return;
         const machine = DataStore.getMachineById(mo.machine_id);
@@ -594,8 +664,12 @@
 
       const startMin = (leftPx / Scheduler.getPxPerHour()) * 60;
       const endMin = startMin + durationMinutes;
-      const labelMap = { running: '🟢 RUNNING', trouble: '🔴 TROUBLE', fixed: '✅ FIXED', scheduled: '🟡 SCHEDULED' };
-      let statusLabel = labelMap[statusClass] || '🟡 SCHEDULED';
+      // gantt_status vocabulary: 'scheduled' displays as "Draft" (placed on
+      // the Gantt but not confirmed), 'fixed' displays as "Ready" (locked in
+      // — this is the only thing allowed to say "Ready" anywhere in the UI;
+      // see the mo_status='ready' rename below for why).
+      const labelMap = { running: '🟢 RUNNING', trouble: '🔴 TROUBLE', setup: '🟡 GANTI BENANG', fixed: '✅ READY', scheduled: '🟡 DRAFT' };
+      let statusLabel = labelMap[statusClass] || '🟡 DRAFT';
       if (locked && statusClass === 'running') statusLabel += ' 🔒';
 
       const actionsHTML = !interactive ? '' : `
@@ -637,7 +711,7 @@
       block.classList.add('status-fixed');
       block.setAttribute('draggable', 'false');
       const lastSpan = block.querySelector('.block-header span:last-child');
-      if (lastSpan) lastSpan.textContent = '✅ FIXED';
+      if (lastSpan) lastSpan.textContent = '✅ READY';
       const actions = block.querySelector('.block-actions');
       if (actions) actions.innerHTML = '<button class="btn-unfix" type="button">🔓 Unfix</button>';
       updateMachineLabels();
@@ -651,7 +725,7 @@
       block.classList.add('status-scheduled');
       block.setAttribute('draggable', 'true');
       const lastSpan = block.querySelector('.block-header span:last-child');
-      if (lastSpan) lastSpan.textContent = '🟡 SCHEDULED';
+      if (lastSpan) lastSpan.textContent = '🟡 DRAFT';
       const actions = block.querySelector('.block-actions');
       if (actions) actions.innerHTML = '<button class="btn-fix" type="button">🔒 Fix</button><button class="btn-remove-block" type="button">🗑️</button>';
       updateMachineLabels();
@@ -739,12 +813,18 @@
           ? '<span class="badge badge-notready">⚠️ Not Ready</span>'
           : '<span class="badge badge-ready">🟢 Ready</span>';
 
+        // Vocabulary: gantt_status 'fixed'/'scheduled' display as "Ready"/
+        // "Draft" (planner's confirmation state). The fallback below is
+        // mo_status='ready' — the MO hasn't been touched by the planner yet
+        // — labeled "Menunggu" (not "Ready") so it can't be confused with
+        // the gantt_status='fixed' "Ready" badge above, or with the
+        // separate Stok column's own real stock-readiness badge.
         let statusBadge;
-        if (item.gantt_status === 'fixed') statusBadge = '<span class="badge badge-fixed">🔒 Fixed</span>';
-        else if (item.gantt_status === 'scheduled') statusBadge = '<span class="badge badge-scheduled">✔ Scheduled</span>';
+        if (item.gantt_status === 'fixed') statusBadge = '<span class="badge badge-fixed">🔒 Ready</span>';
+        else if (item.gantt_status === 'scheduled') statusBadge = '<span class="badge badge-scheduled">✔ Draft</span>';
         else if (item.mo_status === 'in_progress') statusBadge = '<span class="badge badge-running">⚙️ Running</span>';
         else if (item.mo_status === 'done') statusBadge = '<span class="badge badge-done">✅ Done</span>';
-        else statusBadge = '<span class="badge badge-ready">🟢 Ready</span>';
+        else statusBadge = '<span class="badge badge-waiting">🕐 Menunggu</span>';
 
         tr.innerHTML = `
           <td>${idx + 1}</td>
@@ -772,7 +852,7 @@
 
       const ZOOM_SENSITIVITY_PX = 150; // px of drag per doubling/halving of scale
 
-      let dragging = false;
+      let dragging = false; // mirrored into _zoomDragging below so pollers can check Renderer.isZoomDragging()
       let dragStartX = 0;
       let startPxPerHour = 0;
       let anchorDate = null;
@@ -796,6 +876,7 @@
         if (e.button !== 0) return;
         e.preventDefault();
         dragging = true;
+        _zoomDragging = true;
         dragStartX = e.clientX;
         latestClientX = e.clientX;
         startPxPerHour = Scheduler.getPxPerHour();
@@ -815,6 +896,7 @@
       window.addEventListener('mouseup', () => {
         if (!dragging) return;
         dragging = false;
+        _zoomDragging = false;
         document.body.style.cursor = '';
       });
     }
@@ -854,7 +936,7 @@
 
     function initTroubleSim() {
       const machines = DataStore.getMachines();
-      const troubled = machines.find(m => m.iot_status === 'rusak' || m.iot_status === 'benang_putus');
+      const troubled = machines.find(m => isTroubleStatus(m.iot_status));
       _troubleMachineId = troubled ? troubled.id : ((machines[0] && machines[0].id) || null);
       _troubleActive = !!troubled;
       _updateTroubleButton();
@@ -879,7 +961,7 @@
         _troubleActive = false;
         showNotification(`${_troubleMachineId} kembali normal.`, 'info');
       } else {
-        DataStore.updateMachineIoT(_troubleMachineId, 'rusak');
+        DataStore.updateMachineIoT(_troubleMachineId, 'putus');
         _troubleActive = true;
         showNotification(`${_troubleMachineId} mengalami trouble!`, 'error');
       }
@@ -918,6 +1000,7 @@
       initTroubleSim, toggleTrouble,
       scrollToToday, showNotification,
       deriveBlockStatus: _deriveBlockStatus,
+      isZoomDragging: () => _zoomDragging,
     };
   })();
 
@@ -1252,8 +1335,12 @@
       }
 
       const panjangPerBeam = getPanjangTargetNumerik();
-      const operatorName  = (document.getElementById('opName')  || {}).innerText || '';
-      const operatorShift = (document.getElementById('opShift') || {}).innerText || '';
+      // .textContent, not .innerText — opName/opShift's wrapping .form-group
+      // is display:none (see the header markup), and .innerText returns ''
+      // for anything not actually rendered. .textContent doesn't care about
+      // visibility, so the hidden fields still work as row defaults.
+      const operatorName  = (document.getElementById('opName')  || {}).textContent || '';
+      const operatorShift = (document.getElementById('opShift') || {}).textContent || '';
       const shiftOptions  = getShiftOptions();
 
       for (let i = 0; i < beamOrder.length; i++) {
@@ -1532,9 +1619,81 @@
       if (confirm('MO akan diselesaikan. Yakin?')) location.reload();
     }
 
+    // ---- Machine/job handoff from the supervisor view ----
+    // A supervisor card links here as operator_input v2.html?machine=MC01.
+    // With no ?machine= param the page keeps its static placeholder HTML
+    // untouched (e.g. someone opening the file directly). With one, this
+    // overwrites the MO header from DataStore: the machine's actively
+    // running MO if it has one, else the earliest upcoming Ready
+    // (gantt_status='fixed') MO queued for it — same "Ready-only" rule the
+    // supervisor views use, so what the operator sees here can never be a
+    // planner's still-in-progress Draft. Must run before getHeaderValue()
+    // reads (below), since target beam count depends on it.
+    function _applyMachineContext() {
+      const params = new URLSearchParams(window.location.search);
+      const machineId = params.get('machine');
+      if (!machineId) return;
+
+      const machine = DataStore.getMachineById(machineId);
+      const machineLabelEl = document.getElementById('machineIdLabel');
+      if (machineLabelEl) machineLabelEl.textContent = machine ? machine.name : machineId;
+
+      // Optional operator/shift assignment carried from the supervisor's
+      // assign-operator pop-up (SupervisorView.confirmAssignAndOpen). Stays
+      // hidden in the header on purpose (there's no work-hours/roster DB to
+      // make a prominent "assigned to" banner meaningful yet — manual for
+      // now) — this only sets the value that renderTable() reads as the
+      // default for each new beam row's Operator/Shift cell, saving the
+      // operator from retyping their own name every row. Operator is a
+      // free-typed name (?operatorName=), not a user id — there's no
+      // worker database to look one up against.
+      const operatorName = params.get('operatorName');
+      if (operatorName) {
+        const el = document.getElementById('opName');
+        if (el) el.textContent = operatorName;
+      }
+      const shiftId = params.get('shift');
+      if (shiftId) {
+        const shift = DataStore.getShifts().find(s => s.id === shiftId);
+        const el = document.getElementById('opShift');
+        if (el) el.textContent = shift ? shift.label : shiftId;
+      }
+
+      if (!machine) return;
+
+      let mo = machine.active_mo_id ? DataStore.getMOById(machine.active_mo_id) : null;
+      if (!mo) {
+        const queued = DataStore.getMOs()
+          .filter(m => m.machine_id === machineId && m.gantt_status === 'fixed')
+          .sort((a, b) => new Date(a.planned_start) - new Date(b.planned_start));
+        mo = queued[0] || null;
+      }
+
+      const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+      if (!mo) {
+        set('moNumberValue', '-'); set('knittingMcValue', '-'); set('benangValue', '-');
+        set('targetBeam', '0'); set('gbValue', '-'); set('mcSpeed', '-');
+        set('panjangTarget', '0 m'); set('lembarValue', '-'); set('denierValue', '-');
+        set('tensionValue', '-');
+        return;
+      }
+
+      set('moNumberValue', mo.mo_id);
+      set('knittingMcValue', mo.knitting_mc || '-');
+      set('benangValue', mo.yarn_label || '-');
+      set('targetBeam', String(mo.target_beam || 0));
+      set('gbValue', mo.gb != null ? String(mo.gb) : '-');
+      set('mcSpeed', mo.speed_target_rpm ? `${mo.speed_target_rpm} RPM` : '-');
+      set('panjangTarget', mo.order_per_beam_m ? `${Math.round(mo.order_per_beam_m).toLocaleString('id-ID')} m` : '0 m');
+      set('lembarValue', mo.lembar != null ? String(mo.lembar) : '-');
+      set('denierValue', mo.denier != null ? String(mo.denier) : '-');
+      set('tensionValue', mo.slowert_tension || '-');
+    }
+
     // ---- Operator Init ----
     function init() {
       if (!document.getElementById('tableBody') && !document.getElementById('beamTable')) return; // not operator page
+      _applyMachineContext();
       const targetBeam = getHeaderValue('targetBeam');
       beamOrder = new Array(targetBeam).fill(null);
       completedBeams = [];
@@ -1580,32 +1739,33 @@
       return `🕒 ${dayNames[z.getUTCDay()]}, ${z.getUTCDate()} ${months[z.getUTCMonth()]} — ${_fmtZonedTime(new Date())} ${AppTime.getLabel()}`;
     }
 
+    // Only MOs the planner has actually locked in (gantt_status='fixed',
+    // shown to the supervisor as "Ready") — a draft the planner is still
+    // moving around would just confuse the field supervisor.
     function _mosForMachine(machineId) {
       return DataStore.getMOs()
-        .filter(mo => mo.machine_id === machineId && mo.gantt_status !== 'unscheduled')
+        .filter(mo => mo.machine_id === machineId && mo.gantt_status === 'fixed')
         .sort((a, b) => new Date(a.planned_start) - new Date(b.planned_start));
     }
 
-    function _statusBadgeHTML(statusClass) {
-      const map = {
-        running:   '<span class="badge badge-running">⚙️ Running</span>',
-        trouble:   '<span class="badge badge-trouble">🔴 Trouble</span>',
-        fixed:     '<span class="badge badge-fixed">🔒 Fixed</span>',
-        scheduled: '<span class="badge badge-scheduled">✔ Scheduled</span>',
-      };
-      return map[statusClass] || '';
-    }
-
-    function _moRowHTML(mo, machine) {
-      const info = Renderer.deriveBlockStatus(mo, machine);
+    // No per-MO status badge here on purpose: every MO reaching this list
+    // is already "Ready" by definition (see _mosForMachine), and the one
+    // that's actually running mirrors the card header's machine-status line
+    // — a second badge saying the same thing would just be visual noise.
+    function _moRowHTML(mo) {
       const start = mo.planned_start ? new Date(mo.planned_start) : null;
       const end = mo.planned_end ? new Date(mo.planned_end) : null;
       const timeRange = (start && end) ? `${_fmtZonedDayTime(start)}–${_fmtZonedTime(end)} ${AppTime.getLabel()}` : '-';
+      const assigned = _localAssignments[mo.mo_id];
+      const assignedLine = assigned
+        ? `<div class="supervisor-mo-sub">👤 ${assigned.operatorName || '(nama belum diisi)'}${assigned.shiftId ? ' · ' + _shiftLabel(assigned.shiftId) : ''}</div>`
+        : '';
       return `
-        <div class="supervisor-mo-row">
-          <strong>${mo.mo_id}</strong> ${_statusBadgeHTML(info.statusClass)}
+        <div class="supervisor-mo-row" data-mo-id="${mo.mo_id}">
+          <strong>${mo.mo_id}</strong>
           <div class="supervisor-mo-sub">🧵 ${mo.yarn_label || '-'}${mo.lot ? ' | ' + mo.lot : ''}</div>
           <div class="supervisor-mo-sub">📦 ${mo.target_beam || '-'} beam &nbsp;|&nbsp; ⏱️ ${timeRange}</div>
+          ${assignedLine}
         </div>
       `;
     }
@@ -1629,47 +1789,152 @@
         .filter(m => !searchVal || (m.name || '').toLowerCase().includes(searchVal))
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+      // Hard cap per card so a shop-floor screen never has to scroll through
+      // a machine's whole backlog — the currently-running job (if any)
+      // always gets a slot, upcoming Ready MOs fill whatever's left.
+      const MAX_MO_PER_CARD = 5;
+
       container.innerHTML = '';
       machines.forEach(machine => {
         const current = [];
         const upcoming = [];
         _mosForMachine(machine.id).forEach(mo => {
           const info = Renderer.deriveBlockStatus(mo, machine);
-          (info.statusClass === 'running' || info.statusClass === 'trouble' ? current : upcoming).push(mo);
+          (['running', 'trouble', 'setup'].includes(info.statusClass) ? current : upcoming).push(mo);
         });
-
-        const dotClass = machine.iot_status === 'running' ? 'ico-dot-green'
-          : (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus') ? 'ico-dot-red'
-          : 'ico-dot-grey';
+        const shownUpcoming = upcoming.slice(0, Math.max(0, MAX_MO_PER_CARD - current.length));
 
         let bodyHTML = '';
         if (current.length) {
-          bodyHTML += `<div class="supervisor-section-label">▶ Sedang Berjalan</div>${current.map(mo => _moRowHTML(mo, machine)).join('')}`;
+          bodyHTML += `<div class="supervisor-section-label">▶ Sedang Berjalan</div>${current.map(mo => _moRowHTML(mo)).join('')}`;
         }
-        if (upcoming.length) {
-          bodyHTML += `<div class="supervisor-section-label">▷ Antrean Berikutnya</div>${upcoming.map(mo => _moRowHTML(mo, machine)).join('')}`;
+        if (shownUpcoming.length) {
+          bodyHTML += `<div class="supervisor-section-label">▷ Antrean Berikutnya</div>${shownUpcoming.map(mo => _moRowHTML(mo)).join('')}`;
         }
-        if (!current.length && !upcoming.length) {
+        if (!current.length && !shownUpcoming.length) {
           bodyHTML = `<div class="supervisor-empty">Belum ada rencana untuk mesin ini.</div>`;
         }
 
         const card = document.createElement('div');
         card.className = 'supervisor-card';
         if (machine.iot_status === 'running') card.classList.add('running-well');
-        else if (machine.iot_status === 'rusak' || machine.iot_status === 'benang_putus') card.classList.add('machine-trouble');
+        else if (isTroubleStatus(machine.iot_status)) card.classList.add('machine-trouble');
+        else if (isSetupStatus(machine.iot_status)) card.classList.add('machine-setup');
         card.innerHTML = `
           <div class="supervisor-card-header">
-            <span class="ico ico-dot ${dotClass}"></span>
             <span class="supervisor-machine-name">${machine.name}</span>
+            <span class="supervisor-status-square">${iotStatusLabel(machine.iot_status)}</span>
           </div>
           <div class="supervisor-yarn-line">${_machineYarnLineHTML(machine)}</div>
           ${bodyHTML}
         `;
+        // Click through to that machine's operator screen — same shared
+        // HTML for every machine, distinguished by ?machine=, picked up by
+        // OperatorView's _applyMachineContext().
+        card.addEventListener('click', () => {
+          window.location.href = `operator_input%20v2.html?machine=${encodeURIComponent(machine.id)}`;
+        });
+        // Clicking a specific MO row instead opens the assign-operator
+        // popup — stopPropagation so it doesn't also trigger the card's
+        // own (plain, no-operator) navigation above.
+        card.querySelectorAll('.supervisor-mo-row').forEach(rowEl => {
+          rowEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openAssignModal(machine.id, rowEl.dataset.moId);
+          });
+        });
         container.appendChild(card);
       });
     }
 
-    return { renderMachineCards, formatClock };
+    // ---- Assign-operator popup ----
+    // Clicking an MO row asks who's picking it up. No worker database exists
+    // yet (manual for now, per the user 2026-07-23) so the operator is a
+    // free-text name, not a dropdown — only the Shift stays a dropdown
+    // (real, fixed set from DataStore.getShifts()). Kept in an in-memory map
+    // (not DataStore, not synced to server.py) purely so the card can show
+    // "who's assigned" without leaving the page — lost on page reload,
+    // which is fine since it's not meant to be a lasting record.
+    let _assignContext = null; // { machineId, moId }
+    const _localAssignments = {}; // moId -> { operatorName, shiftId }
+
+    function _shiftLabel(shiftId) {
+      const shift = DataStore.getShifts().find(s => s.id === shiftId);
+      return shift ? shift.label : shiftId;
+    }
+
+    function openAssignModal(machineId, moId) {
+      const machine = DataStore.getMachineById(machineId);
+      const mo = DataStore.getMOById(moId);
+      if (!machine || !mo) return;
+      _assignContext = { machineId, moId };
+
+      const infoEl = document.getElementById('assignModalMoInfo');
+      if (infoEl) infoEl.textContent = `${mo.mo_id} — ${machine.name} — ${mo.yarn_label || ''}`;
+
+      const existing = _localAssignments[moId];
+
+      const opInput = document.getElementById('assignOperatorInput');
+      if (opInput) opInput.value = existing ? existing.operatorName : '';
+
+      const shifts = DataStore.getShifts();
+      const shiftSelect = document.getElementById('assignShiftSelect');
+      if (shiftSelect) {
+        shiftSelect.innerHTML = shifts.map(s =>
+          `<option value="${s.id}">${s.label} (${s.start}–${s.end})</option>`
+        ).join('');
+        if (existing && existing.shiftId) shiftSelect.value = existing.shiftId;
+      }
+
+      const overlay = document.getElementById('assignModal');
+      if (overlay) overlay.classList.add('active');
+    }
+
+    function closeAssignModal() {
+      const overlay = document.getElementById('assignModal');
+      if (overlay) overlay.classList.remove('active');
+      _assignContext = null;
+    }
+
+    // Reads the modal's current fields and stores them against the MO in
+    // _localAssignments. Returns the saved { machineId, operatorName,
+    // shiftId } (or null if the modal wasn't actually open) so callers can
+    // decide what to do next — just close, or also navigate.
+    function _saveAssignmentFromModal() {
+      if (!_assignContext) return null;
+      const opInput = document.getElementById('assignOperatorInput');
+      const shiftSelect = document.getElementById('assignShiftSelect');
+      const operatorName = opInput ? opInput.value.trim() : '';
+      const shiftId = shiftSelect ? shiftSelect.value : '';
+      _localAssignments[_assignContext.moId] = { operatorName, shiftId };
+      return { machineId: _assignContext.machineId, operatorName, shiftId };
+    }
+
+    // "Ok" — save the assignment and stay on the supervisor screen (e.g.
+    // assigning several machines' next operator before actually handing any
+    // tablet over).
+    function confirmAssign() {
+      const saved = _saveAssignmentFromModal();
+      closeAssignModal();
+      if (saved) renderMachineCards();
+    }
+
+    // "Ok & Buka Operator Input" — save, then jump straight to that
+    // machine's operator screen with the pick pre-filled.
+    function confirmAssignAndOpen() {
+      const saved = _saveAssignmentFromModal();
+      closeAssignModal();
+      if (!saved) return;
+      const params = new URLSearchParams({ machine: saved.machineId });
+      if (saved.operatorName) params.set('operatorName', saved.operatorName);
+      if (saved.shiftId) params.set('shift', saved.shiftId);
+      window.location.href = `operator_input%20v2.html?${params.toString()}`;
+    }
+
+    return {
+      renderMachineCards, formatClock,
+      openAssignModal, closeAssignModal, confirmAssign, confirmAssignAndOpen,
+    };
   })();
 
 
@@ -1990,7 +2255,7 @@
 
     // --- Planner entry point ---
     if (page === 'planner') {
-      await DataStore.load('./dummy_data.json');
+      await DataStore.load();
       const cfg = DataStore.getConfig();
       Scheduler.configureZoom(cfg.gantt_zoom_default_px_per_hour, cfg.gantt_zoom_min_px_per_hour, cfg.gantt_zoom_max_px_per_hour);
       Renderer.init();
@@ -2033,19 +2298,36 @@
       const nowLineIntervalSec = (DataStore.getConfig().now_line_update_interval_sec) || 60;
       setInterval(Renderer.updateNowLine, nowLineIntervalSec * 1000);
       setTimeout(Renderer.scrollToToday, 300);
+
+      // Live sync: pick up edits made from other pages/tabs against the
+      // same server.py backend (e.g. an operator's IoT button press, or
+      // another planner's reschedule). Skipped while the user has their
+      // hands on something local — an in-progress block drag, the
+      // reroute-warning modal, or a zoom-drag — so a poll can't yank data
+      // out from under an active gesture.
+      setInterval(async () => {
+        if (draggedData || pendingReroute || Renderer.isZoomDragging()) return;
+        try {
+          await DataStore.load();
+          Renderer.renderGantt();
+          Renderer.renderMOTable();
+        } catch (err) {
+          console.error('[planner] live refresh failed:', err);
+        }
+      }, 4000);
       return;
     }
 
     // --- Operator entry point ---
     if (page === 'operator') {
-      await DataStore.load('./dummy_data.json');
+      await DataStore.load();
       OperatorView.init();
       return;
     }
 
     // --- Supervisor entry points (read-only) ---
     if (page === 'supervisor-list') {
-      await DataStore.load('./dummy_data.json');
+      await DataStore.load();
       SupervisorView.renderMachineCards();
 
       const searchEl = document.getElementById('supervisorSearch');
@@ -2056,13 +2338,30 @@
       tickClock();
       setInterval(tickClock, 30000);
 
+      const cancelAssignBtn = document.getElementById('btnCancelAssign');
+      if (cancelAssignBtn) cancelAssignBtn.addEventListener('click', SupervisorView.closeAssignModal);
+      const okAssignBtn = document.getElementById('btnOkAssign');
+      if (okAssignBtn) okAssignBtn.addEventListener('click', SupervisorView.confirmAssign);
+      const okOpenAssignBtn = document.getElementById('btnOkOpenAssign');
+      if (okOpenAssignBtn) okOpenAssignBtn.addEventListener('click', SupervisorView.confirmAssignAndOpen);
+
+      // Live sync: re-fetch from server.py so a plan change made in
+      // ppc_planner.html (in this tab or another device) shows up here
+      // without a manual page reload.
       const refreshSec = (DataStore.getConfig().now_line_update_interval_sec) || 60;
-      setInterval(SupervisorView.renderMachineCards, refreshSec * 1000);
+      setInterval(async () => {
+        try {
+          await DataStore.load();
+          SupervisorView.renderMachineCards();
+        } catch (err) {
+          console.error('[supervisor-list] live refresh failed:', err);
+        }
+      }, refreshSec * 1000);
       return;
     }
 
     if (page === 'supervisor-gantt') {
-      await DataStore.load('./dummy_data.json');
+      await DataStore.load();
       const cfg = DataStore.getConfig();
       Scheduler.configureZoom(cfg.gantt_zoom_default_px_per_hour, cfg.gantt_zoom_min_px_per_hour, cfg.gantt_zoom_max_px_per_hour);
       Renderer.init();
@@ -2080,6 +2379,17 @@
       const nowLineIntervalSec = (cfg.now_line_update_interval_sec) || 60;
       setInterval(Renderer.updateNowLine, nowLineIntervalSec * 1000);
       setTimeout(Renderer.scrollToToday, 300);
+
+      // Live sync: same idea as supervisor-list — poll and re-render so
+      // planner edits show up on this read-only Gantt too.
+      setInterval(async () => {
+        try {
+          await DataStore.load();
+          Renderer.renderGantt(false);
+        } catch (err) {
+          console.error('[supervisor-gantt] live refresh failed:', err);
+        }
+      }, nowLineIntervalSec * 1000);
     }
   });
 

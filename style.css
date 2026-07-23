@@ -166,6 +166,23 @@ body.operator-page {
   border-radius: 4px;
   width: 70px;
 }
+.planner-modal-input-group select {
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 4px;
+  flex: 1;
+}
+.planner-modal-input-group.stacked { flex-direction: column; align-items: stretch; gap: 4px; }
+.planner-modal-input-group.stacked input { width: 100%; }
+
+/* Neutral (non-warning) modal variant — used by the supervisor's assign-
+   operator popup, which isn't a warning so shouldn't wear the red border. */
+.modal-box.neutral    { border-color: var(--border-color); }
+.modal-header.neutral { color: var(--text-main); }
+.btn-confirm-neutral  { background: var(--green-glow); color: #052e16; }
+.btn-confirm-open     { background: #2563eb; color: #fff; }
 
 /* Keep old class names for backward compat */
 .modal-title   { font-size: 1.1rem; font-weight: bold; color: #fca5a5; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -297,6 +314,7 @@ body.operator-page {
 }
 .ico-dot-green  { background: var(--green-glow); }
 .ico-dot-red    { background: var(--red-alert); }
+.ico-dot-yellow { background: var(--yellow-alert); }
 .ico-dot-grey   { background: #64748b; }
 
 /* ============================================================
@@ -476,6 +494,12 @@ body.operator-page {
   box-shadow: 2px 0 5px rgba(0,0,0,0.4);
 }
 .planner-machine-label .machine-name { font-size: 1rem; margin-bottom: 2px; }
+.planner-machine-label .machine-status-line {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
 .planner-machine-label .machine-yarn {
   font-size: 0.75rem;
   color: #f97316;
@@ -490,6 +514,7 @@ body.operator-page {
 }
 .planner-machine-label.running-well  { background: #14532d; }
 .planner-machine-label.machine-trouble { background: #7f1d1d; }
+.planner-machine-label.machine-setup { background: #713f12; }
 
 /* Timeline grid */
 .planner-timeline-track-area {
@@ -1226,17 +1251,58 @@ body.operator-page { font-size: 18px; }
   border-left: 4px solid var(--border-color);
   border-radius: 8px;
   padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.supervisor-card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
 }
 .supervisor-card.running-well    { border-left-color: var(--green-glow); }
 .supervisor-card.machine-trouble { border-left-color: var(--red-alert); }
+.supervisor-card.machine-setup   { border-left-color: var(--yellow-alert); }
 
 .supervisor-card-header {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
 }
-.supervisor-machine-name { font-size: 1.1rem; font-weight: 700; }
+
+/* Machine name itself carries the status color now (no separate bullet
+   dot) — green/red/yellow, same tokens as the card's left border. */
+.supervisor-machine-name { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+.supervisor-card.running-well    .supervisor-machine-name { color: var(--green-glow); }
+.supervisor-card.machine-trouble .supervisor-machine-name { color: var(--red-alert); }
+.supervisor-card.machine-setup   .supervisor-machine-name { color: var(--yellow-alert); }
+
+/* Status "square" on the right — a small colored chip (not a pill, not a
+   dot) carrying the status text, same idea as the old MO status badges.
+   Blinks (@keyframes flash, shared with the planner's trouble badges/
+   blocks) only when the machine is actually in trouble/unresponsive, so a
+   supervisor scanning the grid can't miss it. */
+.supervisor-status-square {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  white-space: nowrap;
+}
+.supervisor-card.running-well    .supervisor-status-square {
+  background: rgba(34,197,94,0.2); color: #4ade80; border-color: rgba(34,197,94,0.4);
+}
+.supervisor-card.machine-setup   .supervisor-status-square {
+  background: rgba(234,179,8,0.2); color: #fde047; border-color: rgba(234,179,8,0.4);
+}
+.supervisor-card.machine-trouble .supervisor-status-square {
+  background: rgba(239,68,68,0.25); color: #fca5a5; border-color: rgba(239,68,68,0.5);
+  animation: flash 1s infinite;
+}
 
 .supervisor-yarn-line {
   font-size: 0.8rem;
@@ -1259,7 +1325,10 @@ body.operator-page { font-size: 18px; }
   padding: 8px 10px;
   margin-bottom: 6px;
   font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
 }
+.supervisor-mo-row:hover { background: rgba(255,255,255,0.08); }
 .supervisor-mo-sub {
   font-size: 0.76rem;
   color: var(--text-muted);

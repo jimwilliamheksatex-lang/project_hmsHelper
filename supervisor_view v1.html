@@ -23,6 +23,31 @@
 
   <div class="supervisor-cards-grid" id="supervisorCards"></div>
 
+  <div class="modal-overlay" id="assignModal">
+    <div class="modal-box neutral">
+      <div class="modal-header neutral"><span>👤 Assign Operator</span></div>
+      <div class="modal-body">
+        <div class="planner-modal-input-group stacked">
+          <label>MO / Mesin</label>
+          <div id="assignModalMoInfo" style="font-weight:600;"></div>
+        </div>
+        <div class="planner-modal-input-group stacked">
+          <label>Nama Operator</label>
+          <input type="text" id="assignOperatorInput" placeholder="Ketik nama operator...">
+        </div>
+        <div class="planner-modal-input-group stacked">
+          <label>Shift</label>
+          <select id="assignShiftSelect"></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal btn-cancel" id="btnCancelAssign" type="button">❌ Batal</button>
+        <button class="btn-modal btn-confirm-neutral" id="btnOkAssign" type="button">✅ Ok</button>
+        <button class="btn-modal btn-confirm-open" id="btnOkOpenAssign" type="button">🚀 Ok &amp; Buka Operator Input</button>
+      </div>
+    </div>
+  </div>
+
 <script src="app.js"></script>
 </body>
 </html>
