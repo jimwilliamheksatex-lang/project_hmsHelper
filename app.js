@@ -678,9 +678,22 @@
         ${!locked ? '<button class="btn-remove-block" type="button">🗑️</button>' : ''}
       `;
 
+      // Live production progress: a dark overlay covering the NOT-yet-done
+      // remainder of the block, from beams_done/target_beam% to the right
+      // edge — the completed portion keeps showing the status color at
+      // full brightness. Only shown once there's real, partial progress
+      // (0 < beams_done < target_beam) so backlog/not-yet-started blocks
+      // look exactly as before. Synced from operator_input v2.html's
+      // completeBeam() via DataStore.updateMOStatus (see OperatorView).
+      const targetBeamCount = mo.target_beam || 0;
+      const beamsDone = mo.beams_done || 0;
+      const showProgress = targetBeamCount > 0 && beamsDone > 0 && beamsDone < targetBeamCount;
+      const progressPct = showProgress ? Math.min(100, Math.round((beamsDone / targetBeamCount) * 100)) : 0;
+
       block.innerHTML = `
         <div class="block-header"><span>${mo.mo_id}${mo.lot ? ' • ' + mo.lot : ''}</span><span>${statusLabel}</span></div>
-        <div class="block-sub">${mo.lembar || '-'} Lembar | ⏱️ ${Scheduler.formatTime(startMin)}-${Scheduler.formatTime(endMin)} ${AppTime.getLabel()} (${durationMinutes} mnt)${extraSetupMin > 0 ? ' +setup ' + extraSetupMin + 'mnt' : ''}</div>
+        <div class="block-sub">${mo.lembar || '-'} Lembar | ⏱️ ${Scheduler.formatTime(startMin)}-${Scheduler.formatTime(endMin)} ${AppTime.getLabel()} (${durationMinutes} mnt)${extraSetupMin > 0 ? ' +setup ' + extraSetupMin + 'mnt' : ''}${beamsDone > 0 ? ` | 📦 ${beamsDone}/${targetBeamCount}` : ''}</div>
+        ${showProgress ? `<div class="block-progress-overlay" style="left:${progressPct}%;"></div>` : ''}
         ${interactive ? `<div class="block-actions">${actionsHTML}</div>` : ''}
       `;
       track.appendChild(block);
@@ -1009,7 +1022,13 @@
   // MODULE: OperatorView  (Operator UI logic)
   // ============================================================
   const OperatorView = (() => {
-    const ADMIN_PASS = DataStore.getConfig().adminPassword;
+    // NOT a module-level const of DataStore.getConfig().adminPassword — this
+    // IIFE runs synchronously at script load, before the DOMContentLoaded
+    // handler's `await DataStore.load()` ever resolves, so a const captured
+    // here would always freeze on the pre-load fallback ('admin123' from
+    // _legacyConfig) regardless of what dummy_data.json's app_config says.
+    // Read fresh at the point of use instead (see confirmEdit).
+    function _adminPassword() { return DataStore.getConfig().adminPassword; }
 
     // Grade choices (static). Shift choices derive from DataStore.getShifts()
     // with a sensible fallback if data hasn't loaded.
@@ -1023,6 +1042,22 @@
     // ---- Row-based workflow state ----
     let isMOStarted    = false;
     let activeRowIndex = -1;
+    // mo_id of whichever job _applyMachineContext() resolved for this
+    // machine — completeBeam() patches this MO's beams_done so the
+    // planner's Gantt can show live progress. null if no real job (no
+    // ?machine= context, or the machine has nothing Ready/active).
+    let currentMoId    = null;
+    // How many beams the server already had recorded as done when this
+    // page loaded. completedBeams always starts at [] each session (no
+    // per-beam state restore — see the coarse-progress design notes), so
+    // without this offset a reload mid-MO would sync completedBeams.length
+    // (restarting from 0) straight over the server's real count, making
+    // progress visibly go BACKWARDS. Every sync sends baseline + however
+    // many were completed in *this* session.
+    let beamsDoneBaseline = 0;
+    // beamKey of a completed row currently reopened for correction (see
+    // requestEdit/confirmEdit) — null when nothing's being edited.
+    let editingBeamKey = null;
 
     // Default values captured from the first completed row, applied to later rows.
     let defaultWinding = null;
@@ -1288,6 +1323,26 @@
       getBeam(beamKey).amplas = checked;
     }
 
+    // Like buildTextInput, but saves into beamData[beamKey].waktuSelesai
+    // instead of beamRuntime (getBeam()) — waktuSelesai has always lived in
+    // beamData, set by completeBeam(), separate from the panjang/speed/...
+    // runtime fields. Only ever rendered when a completed row is reopened
+    // via the Edit flow (see renderTable) — Waktu Mulai has no equivalent
+    // and stays permanently read-only.
+    function buildTimeInput(beamKey, currentValue) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'edit-input';
+      input.value = (currentValue === '-' || currentValue == null) ? '' : currentValue;
+      input.addEventListener('change', () => {
+        const newValue = input.value.trim();
+        if (newValue === '') return;
+        if (!beamData[beamKey]) beamData[beamKey] = {};
+        beamData[beamKey].waktuSelesai = newValue;
+      });
+      return input;
+    }
+
     // ---- Cell append helpers ----
     function appendTextCell(row, value) {
       const td = document.createElement('td');
@@ -1350,9 +1405,17 @@
         const isEditable = (i === activeRowIndex) && !isCompleted && isMOStarted;
         const isLocked = !isEditable && !isCompleted && isMOStarted;
         const isStartable = !isMOStarted && !isCompleted && (i === firstIncompleteIndex);
+        // A completed row reopened via the password-gated Edit flow. Drives
+        // the same field-level editability as an active row (fieldsEditable
+        // below) EXCEPT the Beam cell (identity never changes) and Waktu
+        // Mulai (start time never changes) — only Waktu Selesai gets a new
+        // editable path that doesn't exist for a normal active row.
+        const isEditingThisRow = isCompleted && !!beamKey && beamKey === editingBeamKey;
+        const fieldsEditable = isEditable || isEditingThisRow;
 
         const row = document.createElement('tr');
-        if (isCompleted) row.classList.add('completed');
+        if (isEditingThisRow) row.classList.add('completed', 'active-row');
+        else if (isCompleted) row.classList.add('completed');
         else if (isEditable) row.classList.add('active-row');
         else if (isLocked) row.classList.add('locked');
         else if (!isMOStarted && i === firstIncompleteIndex) row.classList.add('empty-row');
@@ -1389,12 +1452,12 @@
         // UI (selalu read-only — melekat pada data fisik beam)
         appendTextCell(row, ui);
         // Speed (default dari Speed Target header, tetap bisa diedit)
-        appendFieldCell(row, isEditable, beamKey, 'speed', speed, 'number');
+        appendFieldCell(row, fieldsEditable, beamKey, 'speed', speed, 'number');
         // Panjang (default dari Order per Beam, bisa diedit; mengubahnya
         // langsung memperbarui Berat di baris yang sama)
         {
           const panjangTd = document.createElement('td');
-          if (isEditable && beamKey) {
+          if (fieldsEditable && beamKey) {
             const panjangInput = buildTextInput(beamKey, 'panjang', panjangMeter, 'number', (savedValue) => {
               const beratCell = panjangTd.closest('tr').cells[9];
               if (beratCell) beratCell.textContent = hitungBerat(savedValue).toFixed(2);
@@ -1407,13 +1470,13 @@
           row.appendChild(panjangTd);
         }
         // Winding
-        appendFieldCell(row, isEditable, beamKey, 'winding', winding, 'number');
+        appendFieldCell(row, fieldsEditable, beamKey, 'winding', winding, 'number');
         // Cacat (teks bebas — lihat keterangan di bawah tabel)
-        appendFieldCell(row, isEditable, beamKey, 'cacat', cacat, 'text');
+        appendFieldCell(row, fieldsEditable, beamKey, 'cacat', cacat, 'text');
         // Grade (dropdown A-C, default "A")
-        appendChoiceCell(row, isEditable, beamKey, 'grade', grade, GRADE_OPTIONS);
+        appendChoiceCell(row, fieldsEditable, beamKey, 'grade', grade, GRADE_OPTIONS);
         // UA
-        appendFieldCell(row, isEditable, beamKey, 'ua', ua, 'text');
+        appendFieldCell(row, fieldsEditable, beamKey, 'ua', ua, 'text');
         // Berat (read-only)
         appendTextCell(row, beratStr);
 
@@ -1423,22 +1486,34 @@
         amplasCheckbox.type = 'checkbox';
         amplasCheckbox.className = 'amplas-checkbox';
         amplasCheckbox.checked = amplasChecked;
-        amplasCheckbox.disabled = !isEditable || isCompleted || !beamKey;
+        amplasCheckbox.disabled = !fieldsEditable || !beamKey;
         amplasCheckbox.addEventListener('change', () => toggleAmplas(beamKey, amplasCheckbox.checked));
         amplasTd.appendChild(amplasCheckbox);
         row.appendChild(amplasTd);
 
-        // Operator, Shift, Waktu Mulai, Waktu Selesai
-        appendFieldCell(row, isEditable, operatorName, 'opName', operatorName, 'text');
-        appendChoiceCell(row, isEditable, operatorShift, 'opShift', operatorShift, shiftOptions);
+        // Operator, Shift, Waktu Mulai (always read-only — start time never
+        // changes, even in Edit mode), Waktu Selesai (read-only normally;
+        // only becomes editable while this specific row is reopened via
+        // Edit — see buildTimeInput).
+        appendFieldCell(row, fieldsEditable, operatorName, 'opName', operatorName, 'text');
+        appendChoiceCell(row, fieldsEditable, operatorShift, 'opShift', operatorShift, shiftOptions);
         appendTextCell(row, waktuMulai);
-        appendTextCell(row, waktuSelesai);
+        {
+          const selesaiTd = document.createElement('td');
+          if (isEditingThisRow && beamKey) {
+            selesaiTd.appendChild(buildTimeInput(beamKey, waktuSelesai));
+          } else {
+            selesaiTd.textContent = waktuSelesai;
+          }
+          row.appendChild(selesaiTd);
+        }
 
         // Status
         const statusTd = document.createElement('td');
         statusTd.className = 'status-cell';
         let statusText = 'Kosong', statusClass = 'status-empty';
-        if (isCompleted) { statusText = 'Selesai'; statusClass = 'status-completed'; }
+        if (isEditingThisRow) { statusText = 'Diedit Supervisor'; statusClass = 'status-pending'; }
+        else if (isCompleted) { statusText = 'Selesai'; statusClass = 'status-completed'; }
         else if (isEditable) { statusText = 'Aktif'; statusClass = 'status-pending'; }
         else if (isLocked) { statusText = 'Terkunci'; statusClass = 'status-locked'; }
         else if (!isMOStarted && i === firstIncompleteIndex) { statusText = 'Siap'; statusClass = 'status-empty'; }
@@ -1449,12 +1524,18 @@
         // Aksi
         const actionTd = document.createElement('td');
         actionTd.className = 'action-cell';
-        if (isCompleted) {
-          const hapusBtn = document.createElement('button');
-          hapusBtn.className = 'btn-hapus';
-          hapusBtn.textContent = 'Hapus';
-          hapusBtn.addEventListener('click', () => requestDelete(hapusBtn, beamKey));
-          actionTd.appendChild(hapusBtn);
+        if (isEditingThisRow) {
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = '💾 Selesai Edit';
+          saveBtn.style.background = '#2563eb';
+          saveBtn.addEventListener('click', finishEditRow);
+          actionTd.appendChild(saveBtn);
+        } else if (isCompleted) {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn-edit';
+          editBtn.textContent = '✏️ Edit';
+          editBtn.addEventListener('click', () => requestEdit(editBtn, beamKey));
+          actionTd.appendChild(editBtn);
         } else if (isEditable) {
           const doneBtn = document.createElement('button');
           doneBtn.textContent = 'Selesaikan';
@@ -1549,6 +1630,17 @@
       beamData[beamKey].waktuSelesai = formatTime(new Date());
       if (!beamData[beamKey].waktuMulai) beamData[beamKey].waktuMulai = formatTime(new Date());
 
+      // Live progress for the planner's Gantt (see createGanttBlock) — a
+      // coarse count, not a full per-beam record. DataStore.updateMOStatus
+      // already both updates locally and background-syncs to server.py, so
+      // this one call is all that's needed for the planner's next poll
+      // (every 4s) to pick it up. beamsDoneBaseline (captured on load) +
+      // completedBeams.length (this session) — never just the session
+      // count alone, or a reload mid-MO would make progress jump backward.
+      if (currentMoId) {
+        DataStore.updateMOStatus(currentMoId, { beams_done: beamsDoneBaseline + completedBeams.length });
+      }
+
       activeRowIndex = -1;
       isMOStarted = false;
 
@@ -1556,8 +1648,14 @@
       renderTable();
     }
 
-    // ---- Hapus (password-protected) ----
-    function requestDelete(btn, beamKey) {
+    // ---- Edit completed row (supervisor password) ----
+    // Replaces the old delete flow: letting any operator delete a completed
+    // row meant one operator could erase another's finished work. Instead,
+    // the supervisor password reopens the row for correction in place.
+    // Waktu Mulai and the beam's identity (the Beam cell itself) never
+    // become editable even in edit mode — only Waktu Selesai and the normal
+    // production fields (see renderTable's fieldsEditable) do.
+    function requestEdit(btn, beamKey) {
       const td = btn.parentNode;
       td.innerHTML = '';
 
@@ -1568,12 +1666,12 @@
       const okBtn = document.createElement('button');
       okBtn.textContent = 'OK';
       okBtn.style.cssText = 'background:#27ae60;';
-      okBtn.addEventListener('click', () => confirmDelete(okBtn, beamKey, passInput.value));
+      okBtn.addEventListener('click', () => confirmEdit(okBtn, beamKey, passInput.value));
 
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Batal';
       cancelBtn.style.cssText = 'background:#95a5a6;';
-      cancelBtn.addEventListener('click', () => cancelDelete(cancelBtn, beamKey));
+      cancelBtn.addEventListener('click', () => cancelEdit(cancelBtn, beamKey));
 
       td.appendChild(passInput);
       td.appendChild(okBtn);
@@ -1581,37 +1679,36 @@
       passInput.focus();
     }
 
-    function renderHapusButton(td, beamKey) {
+    function renderEditButton(td, beamKey) {
       td.innerHTML = '';
-      const hapusBtn = document.createElement('button');
-      hapusBtn.className = 'btn-hapus';
-      hapusBtn.textContent = 'Hapus';
-      hapusBtn.addEventListener('click', () => requestDelete(hapusBtn, beamKey));
-      td.appendChild(hapusBtn);
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-edit';
+      editBtn.textContent = '✏️ Edit';
+      editBtn.addEventListener('click', () => requestEdit(editBtn, beamKey));
+      td.appendChild(editBtn);
     }
 
-    function confirmDelete(btn, beamKey, pass) {
+    function confirmEdit(btn, beamKey, pass) {
       const td = btn.parentNode;
-      if (pass === ADMIN_PASS) {
-        const idx = completedBeams.indexOf(beamKey);
-        if (idx !== -1) {
-          completedBeams.splice(idx, 1);
-          if (beamData[beamKey]) delete beamData[beamKey].waktuSelesai;
-          const rowIdx = beamOrder.indexOf(beamKey);
-          if (rowIdx !== -1) beamOrder[rowIdx] = null;
-          activeRowIndex = -1;
-          isMOStarted = false;
-        }
-        updateEstimasiSisa();
+      if (pass === _adminPassword()) {
+        editingBeamKey = beamKey;
         renderTable();
       } else {
         alert('Password salah!');
-        renderHapusButton(td, beamKey);
+        renderEditButton(td, beamKey);
       }
     }
 
-    function cancelDelete(btn, beamKey) {
-      renderHapusButton(btn.parentNode, beamKey);
+    function cancelEdit(btn, beamKey) {
+      renderEditButton(btn.parentNode, beamKey);
+    }
+
+    // Fields already save on their own `change` events (same as an active
+    // row) — this just locks the row again, no separate password needed
+    // since entering edit mode was already gated.
+    function finishEditRow() {
+      editingBeamKey = null;
+      renderTable();
     }
 
     // ---- Finish MO ----
@@ -1671,6 +1768,8 @@
 
       const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
       if (!mo) {
+        currentMoId = null;
+        beamsDoneBaseline = 0;
         set('moNumberValue', '-'); set('knittingMcValue', '-'); set('benangValue', '-');
         set('targetBeam', '0'); set('gbValue', '-'); set('mcSpeed', '-');
         set('panjangTarget', '0 m'); set('lembarValue', '-'); set('denierValue', '-');
@@ -1678,6 +1777,8 @@
         return;
       }
 
+      currentMoId = mo.mo_id;
+      beamsDoneBaseline = mo.beams_done || 0;
       set('moNumberValue', mo.mo_id);
       set('knittingMcValue', mo.knitting_mc || '-');
       set('benangValue', mo.yarn_label || '-');
@@ -1708,7 +1809,7 @@
     }
 
     return { init, renderTable, startRow, completeBeam,
-             requestDelete, confirmDelete, cancelDelete,
+             requestEdit, confirmEdit, cancelEdit, finishEditRow,
              finishMO, updateEstimasiSisa };
   })();
 

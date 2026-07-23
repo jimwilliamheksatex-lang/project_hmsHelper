@@ -645,6 +645,19 @@ body.operator-page {
 /* Block inner layout */
 .block-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; margin-bottom: 2px; }
 .block-sub    { font-size: 0.7rem; opacity: 0.8; }
+/* Both promoted above .block-progress-overlay (position:absolute, z-index
+   auto) — without this the overlay would paint over this static text
+   instead of behind it. */
+.block-header, .block-sub { position: relative; z-index: 1; }
+
+/* Live production-progress fill — dark overlay over the NOT-yet-completed
+   remainder of a Gantt block; see createGanttBlock in app.js. */
+.block-progress-overlay {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  pointer-events: none;
+}
 
 /* Snap Ghost */
 .planner-snap-ghost, .snap-ghost {
@@ -1214,6 +1227,19 @@ body.operator-page { font-size: 18px; }
 }
 .operator-action-cell .btn-hapus:hover,
 .action-cell .btn-hapus:hover { background: darkred; }
+
+/* Edit a completed row (supervisor password) — replaces free-for-all
+   delete on completed beams; see requestEdit/confirmEdit in app.js. */
+.action-cell .btn-edit {
+  background: #2563eb;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  width: auto;
+}
+.action-cell .btn-edit:hover { background: #1d4ed8; }
 
 /* ============================================================
    6. SUPERVISOR-* COMPONENTS
